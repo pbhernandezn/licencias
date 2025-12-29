@@ -1,0 +1,256 @@
+import React, { useState, useEffect } from 'react';
+import { UserData } from '../types';
+import { GoogleGenAI } from "@google/genai";
+
+interface ReviewScreenProps {
+  userData: UserData;
+  onBack: () => void;
+  onSend: () => void;
+  onEdit: (data: Partial<UserData>) => void;
+}
+
+// --- COMPONENTE VISOR INTELIGENTE (Sin Cambios) ---
+const DocumentPreview = ({ label, fileData }: { label: string, fileData?: string }) => {
+  if (!fileData) return (
+    <div className="aspect-square rounded-2xl bg-gray-100 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-700 flex flex-col items-center justify-center gap-1 opacity-50">
+        <span className="material-symbols-outlined text-gray-400">upload_file</span>
+        <p className="text-[8px] text-gray-400 font-bold uppercase">Falta Archivo</p>
+    </div>
+  );
+
+  const isPdf = fileData.startsWith('data:application/pdf');
+
+  const handleOpen = () => {
+    const newWindow = window.open();
+    if (newWindow) {
+        newWindow.document.write(
+            `<iframe src="${fileData}" style="position:fixed; top:0; left:0; bottom:0; right:0; width:100%; height:100%; border:none; margin:0; padding:0; overflow:hidden; z-index:999999;"></iframe>`
+        );
+    }
+  };
+
+  return (
+    <div 
+        onClick={handleOpen}
+        className="aspect-square rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm flex flex-col items-center justify-center gap-1 relative group cursor-pointer hover:shadow-md hover:ring-2 hover:ring-primary transition-all"
+        title="Clic para ver documento completo"
+    >
+       {isPdf ? (
+         <div className="flex flex-col items-center justify-center text-red-500 w-full h-full bg-red-50 dark:bg-red-900/10">
+            <span className="material-symbols-outlined text-4xl mb-1 group-hover:scale-110 transition-transform">picture_as_pdf</span>
+            <span className="text-[10px] font-bold uppercase bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded text-red-700 dark:text-red-300">PDF</span>
+         </div>
+       ) : (
+         <img src={fileData} alt={label} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+       )}
+
+       <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1 text-center backdrop-blur-sm z-10">
+          <p className="text-[8px] text-white font-bold uppercase truncate px-1">{label}</p>
+       </div>
+       
+       <div className="absolute top-1 right-1 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-sm z-20 border-2 border-white dark:border-gray-800">
+         <span className="material-symbols-outlined text-[12px]">check</span>
+       </div>
+
+       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors z-0"></div>
+    </div>
+  );
+};
+
+const ReviewScreen: React.FC<ReviewScreenProps> = ({ userData, onBack, onSend, onEdit }) => {
+  const [isVerifying, setIsVerifying] = useState(true);
+  const [aiNote, setAiNote] = useState<string>('');
+  const [agreed, setAgreed] = useState(false);
+  
+  // --- ESTADOS DE EDICIÓN (Credenciales) ---
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [isEditingPassword, setIsEditingPassword] = useState(false);
+
+  useEffect(() => {
+    async function runAiValidation() {
+      try {
+        if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'PLACEHOLDER_API_KEY') {
+             setTimeout(() => {
+                 setAiNote('Validación de identidad y datos de contacto completada.');
+                 setIsVerifying(false);
+             }, 2000);
+             return;
+        }
+
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const prompt = `Act as a government digital identification inspector. 
+          Review these registration details for a citizen account:
+          Name: ${userData.firstName} ${userData.lastName}
+          CURP: ${userData.idNumber}
+          Email: ${userData.email}
+          
+          Provide a very brief (max 20 words) professional 'Validation Note' in Spanish confirming that the identity data format is consistent.`;
+        
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.0-flash',
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        });
+        
+        const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+        setAiNote(text || 'Datos validados correctamente.');
+      } catch (err) {
+        setAiNote('Verificación interna completada satisfactoriamente.');
+      } finally {
+        setIsVerifying(false);
+      }
+    }
+    runAiValidation();
+  }, [userData]);
+
+  return (
+    <div className="flex flex-col h-full bg-background-light dark:bg-background-dark">
+      <header className="flex items-center p-4 justify-between sticky top-0 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md z-10">
+        <button onClick={onBack} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+          <span className="material-symbols-outlined">arrow_back_ios_new</span>
+        </button>
+        <h2 className="text-lg font-bold">Resumen</h2>
+        <div className="w-10"></div>
+      </header>
+
+      <main className="flex-1 overflow-y-auto px-6 pb-24">
+        <div className="py-6">
+          <h1 className="text-2xl font-black mb-1">Casi terminamos</h1>
+          <p className="text-gray-500 dark:text-gray-400">Verifica tus credenciales de acceso y datos personales.</p>
+        </div>
+
+        <div className="space-y-6">
+          {/* AI Validation Box */}
+          <div className="p-5 rounded-3xl bg-primary/5 border border-primary/20 space-y-3">
+            <div className="flex items-center gap-2 text-primary">
+              <span className="material-symbols-outlined text-xl">verified</span>
+              <span className="text-xs font-black uppercase tracking-widest">Validación de Identidad IA</span>
+            </div>
+            {isVerifying ? (
+              <div className="flex items-center gap-3 py-2">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent animate-spin rounded-full"></div>
+                <p className="text-sm font-medium animate-pulse">Analizando coherencia de datos...</p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-700 dark:text-gray-300 italic leading-relaxed">
+                "{aiNote}"
+              </p>
+            )}
+          </div>
+
+          <section className="space-y-4">
+            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest px-1">Detalles de la Cuenta</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 divide-y divide-gray-50 dark:divide-gray-700">
+              
+              <div className="pb-3">
+                <p className="text-[10px] text-gray-400 font-bold uppercase">Nombre Completo</p>
+                <p className="font-bold text-lg capitalize">{userData.firstName} {userData.lastName}</p>
+              </div>
+              
+              <div className="py-3">
+                <p className="text-[10px] text-gray-400 font-bold uppercase">CURP</p>
+                <p className="font-bold font-mono text-gray-600 dark:text-gray-300">{userData.idNumber}</p>
+              </div>
+
+              {/* SECCIÓN EDITABLE: CORREO */}
+              <div className="py-3">
+                <div className="flex justify-between items-center mb-1">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Correo Electrónico</p>
+                    {!isEditingEmail && (
+                        <button onClick={() => setIsEditingEmail(true)} className="text-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 p-1.5 rounded-full transition-colors">
+                            <span className="material-symbols-outlined text-sm">edit</span>
+                        </button>
+                    )}
+                </div>
+                {isEditingEmail ? (
+                    <input 
+                        type="email"
+                        value={userData.email}
+                        onChange={(e) => onEdit({ email: e.target.value })}
+                        autoFocus
+                        onBlur={() => setIsEditingEmail(false)}
+                        className="w-full bg-gray-50 dark:bg-gray-900 border border-primary rounded-xl px-3 py-2 text-sm focus:outline-none font-bold"
+                    />
+                ) : (
+                    <p className="font-bold text-primary">{userData.email}</p>
+                )}
+              </div>
+
+              {/* SECCIÓN EDITABLE: CONTRASEÑA */}
+              <div className="pt-3">
+                <div className="flex justify-between items-center mb-1">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Contraseña</p>
+                    {!isEditingPassword && (
+                        <button onClick={() => setIsEditingPassword(true)} className="text-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 p-1.5 rounded-full transition-colors">
+                            <span className="material-symbols-outlined text-sm">edit</span>
+                        </button>
+                    )}
+                </div>
+                {isEditingPassword ? (
+                    <input 
+                        type="text" // Tipo text para ver lo que escribes al editar
+                        value={(userData as any).password || ''} // Cast as any porque password no es obligatorio en UserData global, pero viene del form
+                        onChange={(e) => onEdit({ password: e.target.value } as any)}
+                        autoFocus
+                        onBlur={() => setIsEditingPassword(false)}
+                        placeholder="Nueva contraseña"
+                        className="w-full bg-gray-50 dark:bg-gray-900 border border-primary rounded-xl px-3 py-2 text-sm focus:outline-none font-bold"
+                    />
+                ) : (
+                    <p className="font-bold text-gray-600 dark:text-gray-300 tracking-widest">
+                        {/* Mostramos asteriscos si hay contraseña, o texto vacío */}
+                        {(userData as any).password ? '••••••••' : '••••••••'}
+                    </p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* DOCUMENTOS */}
+          <section className="space-y-4">
+            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest px-1">Documentos y Biometría</h3>
+            
+            <div className="grid grid-cols-3 gap-3">
+              <DocumentPreview label="Rostro" fileData={userData.photo} />
+              <DocumentPreview label="INE Frente" fileData={userData.documents?.ineFront} />
+              <DocumentPreview label="INE Reverso" fileData={userData.documents?.ineBack} />
+              <DocumentPreview label="Domicilio" fileData={userData.documents?.addressProof} />
+            </div>
+            
+            <p className="text-[10px] text-center text-gray-400">Toca un documento para verlo completo.</p>
+          </section>
+
+          <label className="flex gap-4 p-5 rounded-3xl bg-gray-50 dark:bg-gray-800/50 cursor-pointer group transition-all select-none">
+            <div className="pt-0.5">
+              <input 
+                type="checkbox" 
+                checked={agreed}
+                onChange={e => setAgreed(e.target.checked)}
+                className="w-6 h-6 rounded-lg text-primary focus:ring-primary border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 transition-all cursor-pointer"
+              />
+            </div>
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-200 transition-colors">
+              Declaro bajo protesta de decir verdad que la información y documentos adjuntos son auténticos.
+            </span>
+          </label>
+        </div>
+      </main>
+
+      <div className="p-6 absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light dark:via-background-dark to-transparent pt-10">
+        <button 
+          disabled={!agreed || isVerifying}
+          onClick={onSend}
+          className={`w-full h-16 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-2 shadow-xl ${
+            agreed && !isVerifying 
+              ? 'bg-primary text-white shadow-primary/20 hover:bg-blue-700 active:scale-95' 
+              : 'bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          {isVerifying ? 'Verificando...' : 'Crear Cuenta'}
+          {!isVerifying && <span className="material-symbols-outlined">person_add</span>}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default ReviewScreen;

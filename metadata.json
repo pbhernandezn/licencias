@@ -1,0 +1,8 @@
+
+{
+  "name": "Licencia Digital MX",
+  "description": "Tramita tu licencia de conducir digital de forma segura con verificación biométrica asistida por IA.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

@@ -25,7 +25,6 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
         setModelsLoaded(true);
         startCamera();
       } catch (err) {
-        console.error("Error cargando modelos IA:", err);
         // No mostramos error fatal para permitir el "Omitir"
         // setError("Error cargando IA."); 
       }
@@ -179,7 +178,7 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
-                {!modelsLoaded && <p className="text-center text-xs mt-2 text-gray-400">Cargando modelos de IA...</p>}
+                {!modelsLoaded && <p className="text-center text-xs mt-2 text-gray-400">Coloca tu rostro frente a la cámara</p>}
               </div>
           </div>
         )}

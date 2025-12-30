@@ -13,7 +13,8 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
     email: userData.email || '',
     password: '',
     firstName: userData.firstName || '',
-    lastName: userData.lastName || '',
+    paternalName: userData.paternalName || '', // Nuevo campo separado
+    maternalName: userData.maternalName || '', // Nuevo campo separado
     idNumber: userData.idNumber || '',
     birthDate: userData.birthDate || '',
   });
@@ -25,7 +26,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
   const NAME_REGEX = /^[A-ZÑ\s]*$/;
 
   // --- HANDLERS ---
-  const handleNameInput = (field: 'firstName' | 'lastName', value: string) => {
+  const handleNameInput = (field: 'firstName' | 'paternalName' | 'maternalName', value: string) => {
     const upperValue = value.toUpperCase();
     if (NAME_REGEX.test(upperValue)) {
         setForm(prev => ({ ...prev, [field]: upperValue }));
@@ -44,8 +45,11 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
     if (!form.firstName.trim()) newErrors.firstName = 'Nombre requerido';
-    if (!form.lastName.trim()) newErrors.lastName = 'Apellidos requeridos';
-    if (!form.birthDate) newErrors.birthDate = 'Fecha obtenida de CURP requerida';
+    if (!form.paternalName.trim()) newErrors.paternalName = 'Apellido P. requerido';
+    // Materno puede ser opcional en algunos casos, pero para RENAPO usualmente se pide, lo dejamos requerido por ahora o validamos si es 'X' en CURP
+    if (!form.maternalName.trim()) newErrors.maternalName = 'Apellido M. requerido';
+    
+    if (!form.birthDate) newErrors.birthDate = 'Fecha requerida';
     if (!form.email || !form.email.includes('@')) newErrors.email = 'Correo inválido';
     if (!form.password || form.password.length < 4) newErrors.password = 'Mínimo 4 caracteres';
 
@@ -55,8 +59,8 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
         newErrors.idNumber = 'Debe tener 18 caracteres exactos';
     } else if (!CURP_REGEX.test(form.idNumber)) {
         if (!/^[A-Z]{4}/.test(form.idNumber)) newErrors.idNumber = 'Las primeras 4 posiciones deben ser LETRAS.';
-        else if (!/\d{6}/.test(form.idNumber.substring(4, 10))) newErrors.idNumber = 'La fecha dentro de la CURP es inválida.';
-        else newErrors.idNumber = 'El formato de la CURP es inválido.';
+        else if (!/\d{6}/.test(form.idNumber.substring(4, 10))) newErrors.idNumber = 'Fecha en CURP inválida.';
+        else newErrors.idNumber = 'Formato inválido.';
     }
 
     setErrors(newErrors);
@@ -73,8 +77,9 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
         setForm(prev => ({
           ...prev,
           firstName: result.data.firstName,
-          lastName: result.data.lastName,
-          birthDate: result.data.birthDate // Se llena automágicamente
+          paternalName: result.data.paternalName, // Asumiendo que tu helper ya devuelve esto separado
+          maternalName: result.data.maternalName,
+          birthDate: result.data.birthDate
         }));
         setErrors({});
       }
@@ -125,45 +130,39 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
                     {errors.idNumber && <p className="text-[10px] text-red-500 pl-1 font-bold">{errors.idNumber}</p>}
                 </div>
 
+                <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Nombre(s)</label>
+                    <input value={form.firstName} onChange={e => handleNameInput('firstName', e.target.value)} placeholder="Ej. Juan Carlos" className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.firstName ? 'border-red-400' : 'border-gray-100 dark:border-gray-700'}`} />
+                    {errors.firstName && <p className="text-[10px] text-red-500 pl-1 font-bold">{errors.firstName}</p>}
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Nombre(s)</label>
-                        <input value={form.firstName} onChange={e => handleNameInput('firstName', e.target.value)} placeholder="Ej. Juan Carlos" className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.firstName ? 'border-red-400' : 'border-gray-100 dark:border-gray-700'}`} />
-                        {errors.firstName && <p className="text-[10px] text-red-500 pl-1 font-bold">{errors.firstName}</p>}
+                        <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Apellido Paterno</label>
+                        <input value={form.paternalName} onChange={e => handleNameInput('paternalName', e.target.value)} placeholder="Ej. Pérez" className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.paternalName ? 'border-red-400' : 'border-gray-100 dark:border-gray-700'}`} />
+                        {errors.paternalName && <p className="text-[10px] text-red-500 pl-1 font-bold">{errors.paternalName}</p>}
                     </div>
                     <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Apellidos</label>
-                        <input value={form.lastName} onChange={e => handleNameInput('lastName', e.target.value)} placeholder="Ej. Pérez García" className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.lastName ? 'border-red-400' : 'border-gray-100 dark:border-gray-700'}`} />
-                        {errors.lastName && <p className="text-[10px] text-red-500 pl-1 font-bold">{errors.lastName}</p>}
+                        <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Apellido Materno</label>
+                        <input value={form.maternalName} onChange={e => handleNameInput('maternalName', e.target.value)} placeholder="Ej. García" className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.maternalName ? 'border-red-400' : 'border-gray-100 dark:border-gray-700'}`} />
+                        {errors.maternalName && <p className="text-[10px] text-red-500 pl-1 font-bold">{errors.maternalName}</p>}
                     </div>
                 </div>
 
-                {/* FECHA DE NACIMIENTO (BLOQUEADA / SOLO LECTURA) */}
                 <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Fecha de Nacimiento</label>
                     <div className="relative">
-                        <input 
-                          type="date"
-                          value={form.birthDate}
-                          disabled // <--- AQUÍ ESTÁ EL BLOQUEO
-                          readOnly // Doble seguridad
-                          className={`w-full h-14 bg-gray-100 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl px-4 outline-none text-gray-500 font-bold cursor-not-allowed ${errors.birthDate ? 'border-red-400' : ''}`}
-                        />
-                        {/* Icono de candado para reforzar que es automático */}
+                        <input type="date" value={form.birthDate} disabled readOnly className={`w-full h-14 bg-gray-100 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl px-4 outline-none text-gray-500 font-bold cursor-not-allowed ${errors.birthDate ? 'border-red-400' : ''}`} />
                         <span className="material-symbols-outlined absolute right-4 top-4 text-gray-400 text-lg">lock</span>
                     </div>
-                    {errors.birthDate ? (
-                        <p className="text-[10px] text-red-500 pl-1 font-bold">{errors.birthDate}</p>
-                    ) : (
-                        <p className="text-[10px] text-gray-400 pl-1">Se calcula automáticamente de tu CURP</p>
-                    )}
+                    {errors.birthDate ? <p className="text-[10px] text-red-500 pl-1 font-bold">{errors.birthDate}</p> : <p className="text-[10px] text-gray-400 pl-1">Se calcula automáticamente de tu CURP</p>}
                 </div>
             </section>
         </div>
       </main>
 
       <div className="p-6 absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light dark:via-background-dark to-transparent pt-10">
-        <button onClick={() => { if (validate()) onContinue({ ...form }); }} className="w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-lg shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
+        <button onClick={() => { if (validate()) onContinue({ ...form, lastName: `${form.paternalName} ${form.maternalName}` }); }} className="w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-lg shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
           Continuar <span className="material-symbols-outlined">arrow_forward</span>
         </button>
       </div>

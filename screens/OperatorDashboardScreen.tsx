@@ -13,6 +13,15 @@ const REQUIRED_DOCS = [
     { key: 'photo', label: 'Fotografía Biométrica' }
 ];
 
+// --- AQUÍ SE CONFIGURAN LAS RUTAS DE TU CARPETA LOCAL "photos/" ---
+// Asegúrate de que los archivos existan en public/photos/
+const DOC_PATHS: Record<string, string> = {
+    ineFront: '/photos/INEF.png',      // Cambia el nombre si tu archivo se llama diferente
+    ineBack: '/photos/INET.png',      // Cambia el nombre si tu archivo se llama diferente
+    addressProof: '/photos/Domicilio.png', // O .pdf
+    photo: '/photos/cara.jpeg'               // Este es el que mencionaste antes
+};
+
 const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLogout }) => {
   
   // --- MOCK DATA ---
@@ -97,9 +106,11 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
       setDocReasons(prev => ({ ...prev, [key]: text }));
   };
 
+  // --- MODIFICADO: AHORA USA LA CARPETA LOCAL ---
   const handleViewDocument = (key: string, label: string) => {
-      const fakeUrl = key === 'photo' ? 'https://randomuser.me/api/portraits/men/32.jpg' : 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'; 
-      setPreviewDoc({ url: fakeUrl, title: label });
+      // Intenta buscar la ruta local, si no la encuentra pone un placeholder
+      const fileUrl = DOC_PATHS[key] || 'https://via.placeholder.com/300?text=Archivo+No+Encontrado'; 
+      setPreviewDoc({ url: fileUrl, title: label });
   };
 
   const handleSubmitReview = () => {

@@ -16,10 +16,10 @@ const REQUIRED_DOCS = [
 // --- AQUÍ SE CONFIGURAN LAS RUTAS DE TU CARPETA LOCAL "photos/" ---
 // Asegúrate de que los archivos existan en public/photos/
 const DOC_PATHS: Record<string, string> = {
-    ineFront: '/photos/INEF.png',      // Cambia el nombre si tu archivo se llama diferente
-    ineBack: '/photos/INET.png',      // Cambia el nombre si tu archivo se llama diferente
-    addressProof: '/photos/Domicilio.png', // O .pdf
-    photo: '/photos/cara.jpeg'               // Este es el que mencionaste antes
+    ineFront: 'photos/INEF.png',      // Cambia el nombre si tu archivo se llama diferente
+    ineBack: 'photos/INET.png',      // Cambia el nombre si tu archivo se llama diferente
+    addressProof: 'photos/Domicilio.png', // O .pdf
+    photo: 'photos/cara.jpeg'               // Este es el que mencionaste antes
 };
 
 const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLogout }) => {

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Webcam from 'react-webcam'; // <--- IMPORTANTE
 
 interface BiometricScreenProps {
   onBack: () => void;
@@ -8,8 +9,16 @@ interface BiometricScreenProps {
 const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+  const webcamRef = useRef<Webcam>(null); // Referencia a la cámara
 
-  // Simulación del proceso de escaneo
+  // Configuración de video para móviles (usa la cámara frontal)
+  const videoConstraints = {
+    width: 720,
+    height: 1280,
+    facingMode: "user"
+  };
+
+  // Simulación del proceso de escaneo visual
   useEffect(() => {
     let interval: any;
     if (isScanning) {
@@ -17,29 +26,40 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
         setScanProgress((prev) => {
           if (prev >= 100) {
             clearInterval(interval);
-            setIsScanning(false);
-            // Simular finalización y enviar foto
-            onComplete('https://randomuser.me/api/portraits/men/32.jpg'); 
+            finishScan(); // Al terminar, capturamos la foto
             return 100;
           }
-          return prev + 2; // Velocidad de escaneo
+          return prev + 2;
         });
       }, 50);
     }
     return () => clearInterval(interval);
-  }, [isScanning, onComplete]);
+  }, [isScanning]);
 
   const startScan = () => {
     setIsScanning(true);
     setScanProgress(0);
   };
 
+  // Función para capturar la foto real y terminar
+  const finishScan = useCallback(() => {
+    setIsScanning(false);
+    // Captura la imagen actual de la webcam en formato base64
+    const imageSrc = webcamRef.current?.getScreenshot();
+    
+    if (imageSrc) {
+        onComplete(imageSrc); // Enviamos la foto real tomada
+    } else {
+        // Fallback por si acaso falla la cámara
+        onComplete('https://randomuser.me/api/portraits/men/32.jpg');
+    }
+  }, [webcamRef, onComplete]);
+
   return (
-    // CORRECCIÓN CLAVE: 'fixed inset-0 z-50'
-    // Esto saca al componente del contenedor blanco y lo fuerza a pantalla completa
+    // CONTENEDOR FLOTANTE A PANTALLA COMPLETA
     <div className="fixed inset-0 z-50 flex flex-col bg-black h-[100dvh] w-screen overflow-hidden">
       
-      {/* 1. ENCABEZADO (Fijo arriba) */}
+      {/* 1. ENCABEZADO */}
       <div className="shrink-0 h-16 px-6 flex justify-between items-center bg-gradient-to-b from-black/90 to-transparent z-20 absolute top-0 left-0 right-0">
         <button 
             onClick={onBack} 
@@ -53,14 +73,17 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
         </div>
       </div>
 
-      {/* 2. ÁREA DE CÁMARA (Ocupa toda la pantalla detrás) */}
+      {/* 2. ÁREA DE CÁMARA REAL */}
       <div className="flex-1 relative w-full h-full flex items-center justify-center bg-gray-900">
         
-        {/* IMAGEN DE FONDO (CÁMARA) - Ocupa el 100% real */}
-        <img 
-            src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop" 
-            alt="Camera Feed" 
-            className="absolute inset-0 w-full h-full object-cover opacity-90"
+        {/* COMPONENTE DE CÁMARA REAL */}
+        <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            videoConstraints={videoConstraints}
+            className="absolute inset-0 w-full h-full object-cover"
+            mirrored={true} // Efecto espejo como en los celulares
         />
 
         {/* MÁSCARA SVG (El óvalo negro) */}
@@ -69,11 +92,9 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
                 <defs>
                     <mask id="mask">
                         <rect width="100%" height="100%" fill="white" />
-                        {/* El agujero del óvalo */}
                         <ellipse cx="50%" cy="45%" rx="38%" ry="30%" fill="black" />
                     </mask>
                 </defs>
-                {/* Capa oscura exterior */}
                 <rect width="100%" height="100%" fill="rgba(0,0,0,0.85)" mask="url(#mask)" />
             </svg>
             
@@ -100,11 +121,10 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
         </div>
       </div>
 
-      {/* 3. CONTROLES (Fijo abajo) */}
+      {/* 3. CONTROLES */}
       <div className="shrink-0 bg-black/90 backdrop-blur-xl p-8 pb-10 flex flex-col items-center justify-center z-20 border-t border-white/10 rounded-t-3xl absolute bottom-0 left-0 right-0">
           
           {!isScanning ? (
-              // Botón de Captura
               <button 
                 onClick={startScan}
                 className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center p-1 hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-white/20"
@@ -112,7 +132,6 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
                   <div className="w-full h-full bg-white rounded-full"></div>
               </button>
           ) : (
-              // Barra de Progreso
               <div className="w-full max-w-xs h-2 bg-gray-800 rounded-full overflow-hidden mt-2">
                   <div 
                     className="h-full bg-primary transition-all duration-75 ease-linear"

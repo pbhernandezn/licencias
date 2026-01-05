@@ -1,5 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { StatusBar, Style } from '@capacitor/status-bar'; // <--- IMPORTANTE: Capacitor
 import { AppStep, UserData, LicenseRequest } from './types';
+import './index.css';
 
 // Importamos todas las pantallas
 import WelcomeScreen from './screens/WelcomeScreen';
@@ -18,6 +20,26 @@ import CompleteProfileScreen from './screens/CompleteProfileScreen';
 const App: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.WELCOME);
   
+  // --- CONFIGURACIÓN DE BARRA DE ESTADO (ANDROID/IOS) ---
+  useEffect(() => {
+    const configStatusBar = async () => {
+      try {
+        // CORREGIDO: Fondo Blanco + Letras Negras
+        // Style.Light = "Modo Claro" -> Significa que queremos LETRAS OSCURAS (Negras)
+        await StatusBar.setStyle({ style: Style.Light }); 
+        
+        // Fondo BLANCO
+        await StatusBar.setBackgroundColor({ color: '#FFFFFF' }); 
+        
+        // No encimarse
+        await StatusBar.setOverlaysWebView({ overlay: false }); 
+      } catch (e) {
+        console.log("No estamos en móvil", e);
+      }
+    };
+    configStatusBar();
+  }, []);
+
   // Estado inicial
   const [userData, setUserData] = useState<UserData>({
     firstName: '', lastName: '', idNumber: '', email: '', birthDate: '',
@@ -25,7 +47,7 @@ const App: React.FC = () => {
     bloodGroup: 'O+', organDonor: true, requests: [] 
   });
 
-  // --- LOGICA DE NAVEGACION (Igual) ---
+  // --- LOGICA DE NAVEGACION ---
   const nextStep = useCallback(() => {
     const steps = Object.values(AppStep);
     const currentIndex = steps.indexOf(currentStep);
@@ -47,6 +69,7 @@ const App: React.FC = () => {
       setUserData(prev => ({ ...prev, requests: prev.requests?.map(req => req.id === id ? { ...req, ...updates } : req) }));
   };
 
+  // Exponemos funciones al objeto window para los demos
   (window as any).tempAddRequest = addRequest;
   (window as any).tempUpdateRequestData = updateRequestData;
 
@@ -93,23 +116,21 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen w-full bg-white dark:bg-background-dark">
       
-      {/* LAYOUT 1: DASHBOARD (FULL WIDTH)
-         Si es Dashboard, ocupamos toda la pantalla sin restricciones.
-      */}
+      {/* LAYOUT 1: DASHBOARD (FULL WIDTH) */}
       {isDashboard ? (
-        <div className="w-full h-screen overflow-hidden flex flex-col animate-in fade-in">
-             {renderScreen()}
+        <div className="w-full h-screen overflow-hidden flex flex-col animate-in fade-in bg-white dark:bg-background-dark">
+             {/* Agregamos safe-bottom para proteger el contenido en dashboards */}
+             <div className="flex-1 w-full h-full overflow-hidden flex flex-col safe-bottom">
+                 {renderScreen()}
+             </div>
         </div>
       ) : (
         
-        /* LAYOUT 2: FORMULARIOS (SPLIT SCREEN)
-           Diseño moderno de pantalla dividida para Desktop.
-        */
+        /* LAYOUT 2: FORMULARIOS (SPLIT SCREEN) */
         <div className="flex w-full h-screen">
             
             {/* LADO IZQUIERDO: Branding (Solo visible en Desktop lg:flex) */}
             <div className="hidden lg:flex w-1/2 bg-gray-900 relative items-center justify-center overflow-hidden">
-                {/* Imagen de Fondo (Ejemplo: Paisaje de Durango o Abstracto) */}
                 <img 
                     src="https://images.unsplash.com/photo-1518134714589-940735760233?q=80&w=2000&auto=format&fit=crop" 
                     alt="Background" 
@@ -117,7 +138,6 @@ const App: React.FC = () => {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent"></div>
 
-                {/* Contenido de Marketing/Gobierno */}
                 <div className="relative z-10 p-16 text-white max-w-xl">
                     <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8 border border-white/20 shadow-2xl">
                         <span className="material-symbols-outlined text-5xl">verified_user</span>
@@ -141,11 +161,9 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* LADO DERECHO: El Formulario (renderScreen) */}
+            {/* LADO DERECHO: El Formulario */}
             <div className="w-full lg:w-1/2 flex flex-col bg-white dark:bg-background-dark relative">
-                {/* Contenedor escroleable para el formulario */}
                 <div className="flex-1 overflow-y-auto">
-                    {/* Centrador del contenido */}
                     <div className="min-h-full flex items-center justify-center p-4 sm:p-12 lg:p-16">
                         <div className="w-full max-w-md animate-in slide-in-from-right-8 duration-500">
                             {renderScreen()}
@@ -153,10 +171,12 @@ const App: React.FC = () => {
                     </div>
                 </div>
                 
-                {/* Footer móvil opcional o detalles extra */}
-                <div className="p-4 text-center text-[10px] text-gray-400 lg:hidden">
-                    Gobierno del Estado de Durango &copy; 2025
-                </div>
+                {/* Footer móvil: SOLO EN WELCOME */}
+                {currentStep === AppStep.WELCOME && (
+                    <div className="w-full p-4 text-center text-[10px] text-gray-400 lg:hidden bg-white dark:bg-background-dark pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+                        Gobierno del Estado de Durango &copy; 2025
+                    </div>
+                )}
             </div>
         </div>
       )}

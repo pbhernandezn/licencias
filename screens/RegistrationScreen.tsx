@@ -13,8 +13,8 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
     email: userData.email || '',
     password: '',
     firstName: userData.firstName || '',
-    paternalName: userData.paternalName || '', // Nuevo campo separado
-    maternalName: userData.maternalName || '', // Nuevo campo separado
+    paternalName: userData.paternalName || '',
+    maternalName: userData.maternalName || '',
     idNumber: userData.idNumber || '',
     birthDate: userData.birthDate || '',
   });
@@ -29,16 +29,16 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
   const handleNameInput = (field: 'firstName' | 'paternalName' | 'maternalName', value: string) => {
     const upperValue = value.toUpperCase();
     if (NAME_REGEX.test(upperValue)) {
-        setForm(prev => ({ ...prev, [field]: upperValue }));
-        if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+      setForm(prev => ({ ...prev, [field]: upperValue }));
+      if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
   const handleCurpInput = (value: string) => {
     const upperValue = value.toUpperCase();
     if (/^[A-Z0-9Ñ]*$/.test(upperValue) && upperValue.length <= 18) {
-        setForm(prev => ({ ...prev, idNumber: upperValue }));
-        if (errors.idNumber) setErrors(prev => ({ ...prev, idNumber: '' }));
+      setForm(prev => ({ ...prev, idNumber: upperValue }));
+      if (errors.idNumber) setErrors(prev => ({ ...prev, idNumber: '' }));
     }
   };
 
@@ -46,7 +46,6 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
     const newErrors: { [key: string]: string } = {};
     if (!form.firstName.trim()) newErrors.firstName = 'Nombre requerido';
     if (!form.paternalName.trim()) newErrors.paternalName = 'Apellido P. requerido';
-    // Materno puede ser opcional en algunos casos, pero para RENAPO usualmente se pide, lo dejamos requerido por ahora o validamos si es 'X' en CURP
     if (!form.maternalName.trim()) newErrors.maternalName = 'Apellido M. requerido';
     
     if (!form.birthDate) newErrors.birthDate = 'Fecha requerida';
@@ -54,13 +53,13 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
     if (!form.password || form.password.length < 4) newErrors.password = 'Mínimo 4 caracteres';
 
     if (!form.idNumber) {
-        newErrors.idNumber = 'La CURP es requerida';
+      newErrors.idNumber = 'La CURP es requerida';
     } else if (form.idNumber.length !== 18) {
-        newErrors.idNumber = 'Debe tener 18 caracteres exactos';
+      newErrors.idNumber = 'Debe tener 18 caracteres exactos';
     } else if (!CURP_REGEX.test(form.idNumber)) {
-        if (!/^[A-Z]{4}/.test(form.idNumber)) newErrors.idNumber = 'Las primeras 4 posiciones deben ser LETRAS.';
-        else if (!/\d{6}/.test(form.idNumber.substring(4, 10))) newErrors.idNumber = 'Fecha en CURP inválida.';
-        else newErrors.idNumber = 'Formato inválido.';
+      if (!/^[A-Z]{4}/.test(form.idNumber)) newErrors.idNumber = 'Las primeras 4 posiciones deben ser LETRAS.';
+      else if (!/\d{6}/.test(form.idNumber.substring(4, 10))) newErrors.idNumber = 'Fecha en CURP inválida.';
+      else newErrors.idNumber = 'Formato inválido.';
     }
 
     setErrors(newErrors);
@@ -77,7 +76,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
         setForm(prev => ({
           ...prev,
           firstName: result.data.firstName,
-          paternalName: result.data.paternalName, // Asumiendo que tu helper ya devuelve esto separado
+          paternalName: result.data.paternalName,
           maternalName: result.data.maternalName,
           birthDate: result.data.birthDate
         }));
@@ -87,8 +86,12 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
   };
 
   return (
-    <div className="flex flex-col h-full bg-background-light dark:bg-background-dark">
-      <header className="flex items-center p-4 justify-between sticky top-0 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md z-10">
+    <div className="flex flex-col h-full bg-background-light dark:bg-background-dark relative">
+      
+      {/* HEADER: Con safe-top para el Notch */}
+
+      
+      <header className="safe-top px-6 pt-8 pb-6 flex items-center justify-between bg-white dark:bg-surface-dark shadow-sm sticky top-0 z-10">
         <button onClick={onBack} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
           <span className="material-symbols-outlined">arrow_back_ios_new</span>
         </button>
@@ -98,7 +101,11 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
         <div className="w-10"></div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-6 pb-24">
+      {/* MAIN: El formulario
+          pb-[calc(10rem+env...)] -> Deja un espacio GIGANTE abajo para que el último input 
+          suba por encima del botón flotante al hacer scroll.
+      */}
+      <main className="flex-1 overflow-y-auto px-6 pb-[calc(10rem+env(safe-area-inset-bottom))]">
         <div className="py-4">
           <h1 className="text-2xl font-black mb-1 text-gray-900 dark:text-white">Crear Perfil</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm">Ingresa tus datos de acceso y personales.</p>
@@ -161,7 +168,10 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
         </div>
       </main>
 
-      <div className="p-6 absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light dark:via-background-dark to-transparent pt-10">
+      {/* FOOTER: Botón Continuar 
+          pb calculado = Espacio seguro de Android + 1.5rem (24px) extra
+      */}
+      <div className="p-6 absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light dark:via-background-dark to-transparent pt-10 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] z-20">
         <button onClick={() => { if (validate()) onContinue({ ...form, lastName: `${form.paternalName} ${form.maternalName}` }); }} className="w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-lg shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
           Continuar <span className="material-symbols-outlined">arrow_forward</span>
         </button>

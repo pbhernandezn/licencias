@@ -254,7 +254,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
       
       {/* HEADER */}
-      <header className="bg-indigo-900 text-white px-6 py-5 shadow-lg sticky top-0 z-10 rounded-b-3xl">
+      <header className="safe-top bg-indigo-900 text-white px-6 pb-5 shadow-lg sticky top-0 z-10 rounded-b-3xl">
         <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/30">

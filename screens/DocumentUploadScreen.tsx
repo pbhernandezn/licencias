@@ -193,7 +193,7 @@ const DocumentUploadScreen: React.FC<DocumentUploadScreenProps> = ({ onBack, onC
       </main>
 
       {/* FOOTER */}
-      <div className="p-6 absolute bottom-0 left-0 right-0 bg-white/90 dark:bg-surface-dark/90 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 z-20">
+      <div className="p-6 absolute bottom-0 left-0 right-0 bg-white/90 dark:bg-surface-dark/90 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 z-20 safe-bottom">
         <button 
           onClick={() => onContinue({ documents: docs, hasDisability })}
           disabled={!isComplete}

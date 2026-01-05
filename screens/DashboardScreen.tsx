@@ -32,8 +32,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ userData, onLogout, o
   const [selectedType, setSelectedType] = useState<LicenseType>('Automovilista');
   const [selectedProcess, setSelectedProcess] = useState<ProcessType>('Primera Vez');
   
-  // --- HELPERS ---
-  const getCost = (type: LicenseType) => type === 'Motociclista' ? 608.00 : 912.00;
+  // --- HELPERS (ACTUALIZADO CON TRANSPORTE PÚBLICO) ---
+  const getCost = (type: LicenseType) => {
+      switch (type) {
+          case 'Motociclista': return 608.00;
+          case 'Transporte Público': return 1450.00; // Precio más alto
+          default: return 912.00; // Automovilista
+      }
+  };
+
   const isProfileComplete = !!userData.address && !!userData.emergencyContact;
 
   const activeLicenses = userData.requests?.filter(r => r.status === 'completed') || [];
@@ -41,65 +48,70 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ userData, onLogout, o
       r.status !== 'completed' && r.status !== 'replaced' && r.status !== 'archived'
   ) || [];
 
-  // --- DETECCIÓN DE BIN (VISA vs MASTERCARD) ---
+  // Verifica si ya tiene licencia activa de ese tipo exacto
+  const hasLicenseForType = (type: LicenseType) => {
+      return activeLicenses.some(r => r.type === type);
+  };
+
+  // --- DETECCIÓN DE BIN ---
   const detectCardType = (number: string): 'visa' | 'mastercard' | 'unknown' => {
       const clean = number.replace(/\D/g, '');
       if (clean.match(/^4/)) return 'visa';
-      if (clean.match(/^5[1-5]/) || clean.match(/^2[2-7]/)) return 'mastercard'; // MC bins: 51-55 y 2221-2720
+      if (clean.match(/^5[1-5]/) || clean.match(/^2[2-7]/)) return 'mastercard'; 
       return 'unknown';
   };
-
   const cardType = detectCardType(cardData.number);
 
   // --- VALIDACIONES TARJETA ---
   const handleCardNameChange = (val: string) => {
-      if (/^[A-Z\s]*$/.test(val.toUpperCase())) {
-          setCardData(prev => ({...prev, name: val.toUpperCase()}));
-      }
+      if (/^[A-Z\s]*$/.test(val.toUpperCase())) setCardData(prev => ({...prev, name: val.toUpperCase()}));
   };
-
   const handleCardExpChange = (val: string) => {
       let clean = val.replace(/\D/g, '');
       if (clean.length > 4) return;
       let formatted = clean;
       if (clean.length >= 2) formatted = clean.substring(0, 2) + '/' + clean.substring(2);
       setCardData(prev => ({...prev, exp: formatted}));
-      
       if (clean.length === 4) {
           const mm = parseInt(clean.substring(0, 2));
           const yy = parseInt(clean.substring(2, 4));
           const now = new Date();
           const curMonth = now.getMonth() + 1;
           const curYear = parseInt(now.getFullYear().toString().slice(-2));
-          let error = '';
-          if (mm < 1 || mm > 12) error = 'Mes inválido';
-          else if (yy < curYear) error = 'Vencida';
-          else if (yy === curYear && mm < curMonth) error = 'Vencida';
-          setCardErrors(prev => ({...prev, exp: error}));
-      } else {
-          setCardErrors(prev => ({...prev, exp: ''}));
-      }
+          if (mm < 1 || mm > 12) setCardErrors(p => ({...p, exp: 'Mes inválido'}));
+          else if (yy < curYear || (yy === curYear && mm < curMonth)) setCardErrors(p => ({...p, exp: 'Vencida'}));
+          else setCardErrors(p => ({...p, exp: ''}));
+      } else setCardErrors(p => ({...p, exp: ''}));
   };
 
-  // --- HANDLERS PRINCIPALES ---
+  // --- HANDLERS ---
   const handleOpenNewReq = () => {
     if (!isProfileComplete) { alert("Completa tu perfil primero."); onGoToProfile(); return; }
-    const hasAuto = activeLicenses.some(r => r.type.includes('Auto'));
-    setSelectedType('Automovilista');
-    setSelectedProcess(hasAuto ? 'Renovación' : 'Primera Vez');
+    
+    // Default
+    const defaultType = 'Automovilista';
+    setSelectedType(defaultType);
+    
+    // Validación inicial
+    if (hasLicenseForType(defaultType)) setSelectedProcess('Renovación');
+    else setSelectedProcess('Primera Vez');
+
     setShowNewReqModal(true);
   };
 
   const handleTypeSelect = (type: LicenseType) => {
       setSelectedType(type);
-      const normalizedType = type.includes('Auto') ? 'Automovilista' : 'Motociclista';
-      const hasLicense = activeLicenses.some(r => r.type.includes(normalizedType));
-      setSelectedProcess(hasLicense ? 'Renovación' : 'Primera Vez');
+      // Validación reactiva al cambiar tipo
+      if (hasLicenseForType(type)) setSelectedProcess('Renovación');
+      else setSelectedProcess('Primera Vez');
   };
 
   const handleProceedToPay = () => {
-    const normalizedType = selectedType.includes('Auto') ? 'Automovilista' : 'Motociclista';
-    if (activeProcessList.some(r => r.type.includes(normalizedType))) { alert(`Ya tienes un trámite de ${selectedType} en curso.`); return; }
+    // Verificamos si ya hay un trámite EXACTAMENTE de este tipo en curso
+    if (activeProcessList.some(r => r.type === selectedType)) { 
+        alert(`Ya tienes un trámite de ${selectedType} en curso.`); 
+        return; 
+    }
     setShowNewReqModal(false);
     setPaymentStep('select');
     setCardData({ number: '', name: '', exp: '', cvv: '' });
@@ -108,23 +120,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ userData, onLogout, o
   };
 
   const finalizeRequest = (method: 'card' | 'ventanilla') => {
-      // VALIDACIÓN ESPECÍFICA PARA TARJETA
       if (method === 'card') {
-          // 1. Validar si la tarjeta es soportada (Visa/MC)
-          const type = detectCardType(cardData.number);
-          if (type === 'unknown') {
-              alert("Tarjeta no válida. Por favor verifique su número (Solo Visa o MasterCard).");
-              return; // <--- AQUÍ SE DETIENE SI PONES 999...
-          }
-
-          // 2. Validar la fecha
-          if (cardErrors.exp || cardData.exp.length < 5) {
-              alert("Por favor corrige la fecha de vencimiento.");
-              return;
-          }
+          if (detectCardType(cardData.number) === 'unknown') { alert("Tarjeta no válida."); return; }
+          if (cardErrors.exp || cardData.exp.length < 5) { alert("Fecha incorrecta."); return; }
       }
-
-      // Si pasa las validaciones, simula el proceso
       setTimeout(() => {
         const newRequest: LicenseRequest = {
             id: Date.now().toString(),
@@ -141,7 +140,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ userData, onLogout, o
       }, 1500);
   };
 
-  // --- OTRAS FUNCIONES (DEMO, PDF, DOCS) ---
+  // --- DEMO HELPERS ---
   const handleDemoApprove = (reqId: string) => {
     if(window.confirm("DEMO: ¿Aprobar?")) {
         const req = activeProcessList.find(r => r.id === reqId);
@@ -156,7 +155,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ userData, onLogout, o
       if(!window.confirm("DEMO: ¿Rechazar?")) return;
       (window as any).tempUpdateRequestData(reqId, { status: 'rejected', rejectedDocuments: ['photo'] });
   };
-  const generatePaymentSlip = () => { /* Logica PDF igual... */ finalizeRequest('ventanilla'); };
+  const generatePaymentSlip = () => { finalizeRequest('ventanilla'); };
   const handleOpenFixModal = (req: LicenseRequest) => { setFixingRequest(req); setFixedDocs({}); };
   const triggerFileUpload = (docKey: string) => { setActiveDocKey(docKey); setTimeout(() => fileInputRef.current?.click(), 50); };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files?.[0] && activeDocKey) { setFixedDocs(p => ({...p, [activeDocKey]: true})); e.target.value = ''; }};
@@ -238,29 +237,66 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ userData, onLogout, o
 
       <button onClick={handleOpenNewReq} className="absolute bottom-6 right-6 w-14 h-14 bg-black dark:bg-white text-white dark:text-black rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-20"><span className="material-symbols-outlined text-3xl">add</span></button>
 
-      {/* MODAL 1: SELECCIÓN */}
+      {/* MODAL 1: SELECCIÓN (ACTUALIZADO CON 3 BOTONES) */}
       {showNewReqModal && (
         <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white dark:bg-surface-dark w-full max-w-sm rounded-3xl shadow-2xl p-6 animate-in slide-in-from-bottom-10 space-y-5">
                 <div className="flex justify-between items-center border-b border-gray-100 pb-3"><h2 className="text-lg font-black">Nueva Solicitud</h2><button onClick={() => setShowNewReqModal(false)} className="bg-gray-100 p-1 rounded-full"><span className="material-symbols-outlined text-sm">close</span></button></div>
-                <div className="space-y-2"><div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => handleTypeSelect('Automovilista')} className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${selectedType === 'Automovilista' ? 'border-primary bg-blue-50 text-primary' : 'border-gray-100 text-gray-400'}`}><span className="material-symbols-outlined">directions_car</span><span className="text-xs font-bold">Auto</span></button>
-                    <button onClick={() => handleTypeSelect('Motociclista')} className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${selectedType === 'Motociclista' ? 'border-primary bg-blue-50 text-primary' : 'border-gray-100 text-gray-400'}`}><span className="material-symbols-outlined">two_wheeler</span><span className="text-xs font-bold">Moto</span></button>
-                </div></div>
+                
+                {/* GRID DE 3 COLUMNAS PARA LOS BOTONES */}
+                <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                        {/* Auto */}
+                        <button onClick={() => handleTypeSelect('Automovilista')} className={`p-2 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all h-20 ${selectedType === 'Automovilista' ? 'border-primary bg-blue-50 text-primary' : 'border-gray-100 text-gray-400'}`}>
+                            <span className="material-symbols-outlined text-2xl">directions_car</span>
+                            <span className="text-[10px] font-bold">Auto</span>
+                        </button>
+                        
+                        {/* Moto */}
+                        <button onClick={() => handleTypeSelect('Motociclista')} className={`p-2 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all h-20 ${selectedType === 'Motociclista' ? 'border-primary bg-blue-50 text-primary' : 'border-gray-100 text-gray-400'}`}>
+                            <span className="material-symbols-outlined text-2xl">two_wheeler</span>
+                            <span className="text-[10px] font-bold">Moto</span>
+                        </button>
+                        
+                        {/* Transporte Público */}
+                        <button onClick={() => handleTypeSelect('Transporte Público')} className={`p-2 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all h-20 ${selectedType === 'Transporte Público' ? 'border-primary bg-blue-50 text-primary' : 'border-gray-100 text-gray-400'}`}>
+                            <span className="material-symbols-outlined text-2xl">directions_bus</span>
+                            <span className="text-[10px] font-bold text-center leading-tight">Transporte<br/>Público</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* SELECTOR INTELIGENTE */}
                 <div className="space-y-2">
                     <label className="text-xs font-bold uppercase text-gray-400">Trámite</label>
-                    <select value={selectedProcess} onChange={(e) => setSelectedProcess(e.target.value as ProcessType)} className="w-full h-12 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm outline-none">
-                        {activeLicenses.some(r => r.type.includes(selectedType.includes('Auto') ? 'Automovilista' : 'Motociclista')) ? <option>Renovación</option> : <option>Primera Vez</option>}
-                        <option>Reposición</option>
+                    <select 
+                        value={selectedProcess} 
+                        onChange={(e) => setSelectedProcess(e.target.value as ProcessType)} 
+                        className="w-full h-12 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm outline-none appearance-none"
+                    >
+                        {hasLicenseForType(selectedType) ? (
+                            <>
+                                <option value="Renovación">Renovación</option>
+                                <option value="Reposición">Reposición</option>
+                            </>
+                        ) : (
+                            <option value="Primera Vez">Primera Vez</option>
+                        )}
                     </select>
+                    <p className="text-[10px] text-gray-400 text-right">
+                        {hasLicenseForType(selectedType) 
+                            ? "Ya cuentas con esta licencia (Renovación disponible)." 
+                            : "Trámite de primera vez."}
+                    </p>
                 </div>
+
                 <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl flex justify-between items-center"><span className="text-xs font-bold text-gray-500">Total:</span><span className="text-xl font-black text-gray-900 dark:text-white">${getCost(selectedType)}.00</span></div>
                 <button onClick={handleProceedToPay} className="w-full h-12 bg-primary text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">Pagar Derechos <span className="material-symbols-outlined text-sm">payments</span></button>
             </div>
         </div>
       )}
 
-      {/* MODAL 2: PAGO (CON DETECCIÓN DE TARJETA) */}
+      {/* MODAL 2: PAGO */}
       {showPaymentModal && (
         <div className="absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in">
              <div className="bg-white dark:bg-surface-dark w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10 max-h-[85vh] flex flex-col">
@@ -279,7 +315,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ userData, onLogout, o
                     )}
                     {paymentStep === 'card' && (
                         <div className="space-y-5 animate-in slide-in-from-right">
-                            {/* --- TARJETA DINÁMICA --- */}
                             <div className={`rounded-xl p-5 text-white shadow-lg relative overflow-hidden transition-all duration-500 
                                 ${cardType === 'visa' ? 'bg-gradient-to-br from-blue-800 to-blue-950' : 
                                   cardType === 'mastercard' ? 'bg-gradient-to-br from-red-700 to-orange-800' : 
@@ -295,8 +330,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ userData, onLogout, o
                                 <div className="flex justify-between text-[10px] opacity-70 uppercase tracking-wider"><span>Titular</span><span>Expira</span></div>
                                 <div className="flex justify-between font-bold text-sm tracking-wide"><span>{cardData.name || 'NOMBRE'}</span><span>{cardData.exp || 'MM/AA'}</span></div>
                             </div>
-                            {/* --- FIN TARJETA DINÁMICA --- */}
-
                             <div className="space-y-3">
                                 <div className="space-y-1"><label className="text-[10px] font-bold uppercase text-gray-400 ml-1">Número de Tarjeta</label><input maxLength={19} value={cardData.number} onChange={(e) => { let val = e.target.value.replace(/\D/g, '').substring(0,16); val = val.match(/.{1,4}/g)?.join(' ') || val; setCardData({...cardData, number: val}); }} placeholder="0000 0000 0000 0000" className="w-full h-11 px-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 outline-none focus:border-primary font-mono text-sm" /></div>
                                 <div className="space-y-1"><label className="text-[10px] font-bold uppercase text-gray-400 ml-1">Titular (Sin Ñ)</label><input value={cardData.name} onChange={(e) => handleCardNameChange(e.target.value)} placeholder="COMO APARECE EN LA TARJETA" className="w-full h-11 px-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 outline-none focus:border-primary uppercase text-sm" /></div>

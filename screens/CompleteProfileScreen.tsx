@@ -323,7 +323,7 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
                 <div className="col-span-1 space-y-1">
                     <label className="text-[10px] font-bold uppercase text-gray-500 ml-1">Sexo</label>
                     <select value={form.gender} onChange={(e) => setForm({...form, gender: e.target.value})} className="w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 outline-none font-bold">
-                        <option value="M">MUJER</option><option value="H">HOMBRE</option>
+                        <option value="F">FEMENINO</option><option value="M">MASCULINO</option>
                     </select>
                 </div>
                 <div className="col-span-1 space-y-1">

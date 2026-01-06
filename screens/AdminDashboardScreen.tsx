@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-// IMPORTACIONES CLAVE
+import React, { useState, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import html2pdf from 'html2pdf.js';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
@@ -9,7 +8,6 @@ interface AdminDashboardScreenProps {
   onLogout: () => void;
 }
 
-// LISTA OFICIAL DE LOS 39 MUNICIPIOS
 const DURANGO_MUNICIPIOS = [
   'Canatlán', 'Canelas', 'Coneto de Comonfort', 'Cuencamé', 'Durango', 
   'El Oro', 'General Simón Bolívar', 'Gómez Palacio', 'Guadalupe Victoria', 
@@ -21,7 +19,6 @@ const DURANGO_MUNICIPIOS = [
   'Tamazula', 'Tepehuanes', 'Tlahualilo', 'Topia', 'Vicente Guerrero'
 ];
 
-// MOCK DATA: Operadores
 const INITIAL_OPERATORS = [
     { id: 1, name: 'Roberto Gómez', email: 'roberto@durango.gob.mx', role: 'Supervisor', status: 'active', rejections: 12, approvals: 140 },
     { id: 2, name: 'Ana Martínez', email: 'ana@durango.gob.mx', role: 'Operador', status: 'active', rejections: 45, approvals: 80 },
@@ -33,7 +30,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
   const [activeTab, setActiveTab] = useState<'overview' | 'operators'>('overview');
   const [operators, setOperators] = useState(INITIAL_OPERATORS);
   
-  // Filtros de Fecha
+  // FECHAS
   const todayDate = new Date();
   const todayISO = todayDate.toISOString().split('T')[0]; 
   const firstDay = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1).toISOString().split('T')[0];
@@ -41,20 +38,19 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
 
   const [dateRange, setDateRange] = useState({ start: firstDay, end: lastDay });
   const [filterLabel, setFilterLabel] = useState('Mes Actual');
+  const [activeFilterBtn, setActiveFilterBtn] = useState<'month' | 'quarter' | 'year' | 'custom'>('month');
   
-  // FILTROS DE OPERADORES
+  // FILTROS
   const [searchOp, setSearchOp] = useState('');
   const [filterOpStatus, setFilterOpStatus] = useState<'all' | 'active' | 'inactive'>('all');
 
-  // Estados Modales
+  // MODALES
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedMuni, setSelectedMuni] = useState<string | null>(null);
-
-  // PDF Preview
   const [pdfPreview, setPdfPreview] = useState<{ show: boolean, html: string, title: string } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false); 
 
-  // Inputs Nuevo Operador
+  // INPUTS
   const [newOpName, setNewOpName] = useState('');
   const [newOpEmail, setNewOpEmail] = useState('');
   const [formErrors, setFormErrors] = useState<{name?: string, email?: string}>({});
@@ -70,28 +66,50 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
       if (dateRange.start && dateRange.end) {
           return `${formatDateMX(dateRange.start)} al ${formatDateMX(dateRange.end)}`;
       }
-      return "Periodo Histórico Completo";
+      return "Periodo Histórico";
   };
 
+  // --- LÓGICA DE DATOS PRINCIPAL ---
   const getMuniStats = (muniName: string) => {
-      const seed = muniName.length * 10; 
-      const total = Math.floor(Math.random() * 500) + seed;
-      const autoPct = 65; 
-      const motoPct = 35;
+      const dateFactor = parseInt(dateRange.start.replace(/-/g, '').substring(6)) || 1; 
+      const seed = (muniName.length * 5) + dateFactor; 
+      
+      // 1. Calculamos valores base
+      const primera = Math.floor(Math.random() * 80) + seed;
+      const renovacion = Math.floor(Math.random() * 120) + seed;
+      
+      // 2. Total real
+      const total = primera + renovacion;
+
+      // 3. Calculamos porcentajes REALES para el gráfico
+      const primeraPct = Math.round((primera / total) * 100);
+      const renovacionPct = 100 - primeraPct; // Para asegurar que sumen 100% exacto
       
       return {
           name: muniName,
-          total,
-          auto: { count: Math.floor(total * (autoPct/100)), pct: autoPct },
-          moto: { count: Math.floor(total * (motoPct/100)), pct: motoPct },
-          types: {
-              primera: Math.floor(total * 0.4),
-              refrendo: Math.floor(total * 0.5),
-              reposicion: Math.floor(total * 0.1)
+          total, 
+          // Breakdown con datos y porcentajes reales
+          breakdown: {
+              primera: { count: primera, pct: primeraPct },
+              renovacion: { count: renovacion, pct: renovacionPct }
           }
       };
   };
-  
+
+  // CÁLCULO TOTALES DINÁMICOS
+  const globalStats = useMemo(() => {
+      let totalTramites = 0;
+      let totalDinero = 0;
+
+      DURANGO_MUNICIPIOS.forEach(muni => {
+          const stats = getMuniStats(muni);
+          totalTramites += stats.total;
+          totalDinero += stats.total * 900; 
+      });
+
+      return { count: totalTramites, money: totalDinero };
+  }, [dateRange]);
+
   const currentMuniStats = selectedMuni ? getMuniStats(selectedMuni) : null;
 
   const filteredOperators = operators.filter(op => {
@@ -100,19 +118,110 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
       return matchesSearch && matchesStatus;
   });
 
-  // --- LÓGICA DE EXPORTACIÓN ---
+  // --- HTML ESTRUCTURA ---
+  const generateHTMLStructure = (title: string, contentBody: string) => {
+    return `
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body { font-family: 'Helvetica', sans-serif; padding: 20px; color: #333; background: white; font-size: 12px; }
+                .header-table { width: 100%; border-bottom: 2px solid #2c3e50; margin-bottom: 20px; padding-bottom: 10px; }
+                .header-title { font-size: 20px; color: #2c3e50; font-weight: bold; }
+                .header-meta { text-align: right; font-size: 10px; color: #666; }
+                table.data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+                table.data-table th, table.data-table td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+                table.data-table th { background-color: #2c3e50; color: white; }
+                table.data-table tr:nth-child(even) { background-color: #f9f9f9; }
+                .box { border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 8px; background: #fafafa; }
+                .row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; }
+                .val { font-weight: bold; }
+                .footer { margin-top: 30px; font-size: 8px; color: #777; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
+            </style>
+        </head>
+        <body>
+            <table class="header-table">
+                <tr>
+                    <td class="header-title">${title}</td>
+                    <td class="header-meta">
+                        <strong>Fecha Emisión:</strong> ${formatDateMX(todayISO)}<br/>
+                        <strong>Rango:</strong> ${filterLabel}<br/>
+                        ${getRangeText()}
+                    </td>
+                </tr>
+            </table>
+            ${contentBody}
+            <div class="footer">Gobierno del Estado de Durango - Plataforma Digital Segura</div>
+        </body>
+        </html>
+    `;
+  };
+
+  const handlePreviewGlobalPDF = () => {
+    let grandTotal = 0;
+    let grandPrimera = 0;
+    let grandRenovacion = 0;
+    let rowsHTML = '';
+    
+    DURANGO_MUNICIPIOS.forEach(muni => {
+        const stats = getMuniStats(muni);
+        const cash = stats.total * 900;
+        grandTotal += stats.total;
+        grandPrimera += stats.breakdown.primera.count;
+        grandRenovacion += stats.breakdown.renovacion.count;
+        const shortName = muni.length > 15 ? muni.substring(0,13) + '..' : muni;
+        // COLUMNAS ACTUALIZADAS
+        rowsHTML += `<tr><td>${shortName}</td><td><strong>${stats.total}</strong></td><td>${stats.breakdown.primera.count}</td><td>${stats.breakdown.renovacion.count}</td><td>$${(cash/1000).toFixed(1)}k</td></tr>`;
+    });
+
+    const body = `
+        <div style="margin-bottom: 15px;">
+            <div class="box">
+                <h3 style="margin:0 0 5px 0;">Resumen General</h3>
+                <div class="row"><span>Total Trámites:</span> <span class="val" style="font-size:14px">${grandTotal.toLocaleString()}</span></div>
+                <div class="row"><span>Recaudación Est:</span> <span class="val" style="color:green">$${(grandTotal * 900).toLocaleString()}</span></div>
+            </div>
+        </div>
+        <table class="data-table">
+            <thead><tr><th>Municipio</th><th>Total</th><th>1ra Vez</th><th>Renovación</th><th>Recaudado</th></tr></thead>
+            <tbody>
+                ${rowsHTML}
+                <tr style="background-color: #eef2ff; font-weight: bold;"><td>TOTAL ESTATAL</td><td>${grandTotal}</td><td>${grandPrimera}</td><td>${grandRenovacion}</td><td>-</td></tr>
+            </tbody>
+        </table>
+    `;
+    setPdfPreview({ show: true, html: generateHTMLStructure('Reporte Estatal Global', body), title: 'Reporte Global' });
+  };
+
+  const handlePreviewMuniPDF = () => {
+    if (!currentMuniStats) return;
+    const s = currentMuniStats;
+    const b = s.breakdown;
+    const body = `
+        <h2 style="color: #4F46E5; margin-top:0;">${s.name}</h2>
+        <div class="box">
+            <h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Resumen</h3>
+            <div class="row"><span>Total Trámites:</span> <span class="val">${s.total}</span></div>
+        </div>
+        <div class="box">
+            <h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Desglose por Tipo</h3>
+            <div class="row"><span>Primera Vez:</span> <span class="val">${b.primera.count} (${b.primera.pct}%)</span></div>
+            <div class="row"><span>Renovación:</span> <span class="val">${b.renovacion.count} (${b.renovacion.pct}%)</span></div>
+        </div>
+    `;
+    setPdfPreview({ show: true, html: generateHTMLStructure('Reporte Municipal', body), title: `Reporte - ${s.name}` });
+  };
 
   const downloadExcel = async () => {
     try {
-      let csvContent = "\uFEFFID,Municipio,Total Tramites,Autos,Motos,Recaudacion Estimada\n"; 
+      let csvContent = "\uFEFFID,Municipio,Total Tramites,Primera Vez,Renovacion,Recaudacion Estimada\n"; 
       DURANGO_MUNICIPIOS.forEach((muni, index) => {
           const stats = getMuniStats(muni);
           const cash = stats.total * 900;
-          csvContent += `${index + 1},"${muni}",${stats.total},${stats.auto.count},${stats.moto.count},"$${cash}"\n`;
+          csvContent += `${index + 1},"${muni}",${stats.total},${stats.breakdown.primera.count},${stats.breakdown.renovacion.count},"$${cash}"\n`;
       });
-
       const fileName = `Reporte_Durango_${Date.now()}.csv`;
-
       if (Capacitor.isNativePlatform()) {
           const savedFile = await Filesystem.writeFile({
               path: fileName,
@@ -135,73 +244,6 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
       console.error("Error al exportar Excel:", error);
       alert("No se pudo descargar el archivo.");
     }
-  };
-
-  const generateHTMLStructure = (title: string, contentBody: string) => {
-    return `
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body { font-family: 'Helvetica', sans-serif; padding: 15px; color: #333; background: white; font-size: 12px; }
-                h1 { color: #2c3e50; margin-bottom: 5px; font-size: 20px; }
-                .header { border-bottom: 2px solid #2c3e50; padding-bottom: 10px; margin-bottom: 15px; }
-                table { width: 100%; border-collapse: collapse; font-size: 9px; }
-                th, td { border: 1px solid #ddd; padding: 4px; text-align: left; }
-                th { background-color: #2c3e50; color: white; }
-                tr:nth-child(even) { background-color: #f9f9f9; }
-                .box { border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 8px; background: #fafafa; }
-                .row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; }
-                .val { font-weight: bold; }
-                .footer { margin-top: 30px; font-size: 8px; color: #777; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>${title}</h1>
-                <p style="font-size: 10px; margin: 0; color: #666;"><strong>Fecha:</strong> ${formatDateMX(todayISO)} <br/> <strong>Periodo:</strong> ${filterLabel} <br/> (${getRangeText()})</p>
-            </div>
-            ${contentBody}
-            <div class="footer">Gobierno del Estado de Durango - Plataforma Digital</div>
-        </body>
-        </html>
-    `;
-  };
-
-  const handlePreviewGlobalPDF = () => {
-    let grandTotal = 0;
-    let grandAutos = 0;
-    let grandMotos = 0;
-    let rowsHTML = '';
-    DURANGO_MUNICIPIOS.forEach(muni => {
-        const stats = getMuniStats(muni);
-        const cash = stats.total * 900;
-        grandTotal += stats.total;
-        grandAutos += stats.auto.count;
-        grandMotos += stats.moto.count;
-        const shortName = muni.length > 12 ? muni.substring(0,10) + '..' : muni;
-        rowsHTML += `<tr><td>${shortName}</td><td><strong>${stats.total}</strong></td><td>${stats.auto.count}</td><td>${stats.moto.count}</td><td>$${(cash/1000).toFixed(1)}k</td></tr>`;
-    });
-    const body = `
-        <table>
-            <thead><tr><th>Mpio</th><th>Total</th><th>Autos</th><th>Motos</th><th>$ (Est)</th></tr></thead>
-            <tbody>${rowsHTML}<tr style="background-color: #eef2ff; font-weight: bold;"><td>TOTAL</td><td>${grandTotal}</td><td>${grandAutos}</td><td>${grandMotos}</td><td>-</td></tr></tbody>
-        </table>
-    `;
-    setPdfPreview({ show: true, html: generateHTMLStructure('Reporte Global', body), title: 'Reporte Global' });
-  };
-
-  const handlePreviewMuniPDF = () => {
-    if (!currentMuniStats) return;
-    const s = currentMuniStats;
-    const body = `
-        <h2 style="color: #4F46E5; margin-top:0;">${s.name}</h2>
-        <div class="box"><h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Resumen</h3><div class="row"><span>Total Trámites:</span> <span class="val">${s.total}</span></div></div>
-        <div class="box"><h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Parque Vehicular</h3><div class="row"><span>Autos:</span> <span class="val">${s.auto.count} (${s.auto.pct}%)</span></div><div class="row"><span>Motos:</span> <span class="val">${s.moto.count} (${s.moto.pct}%)</span></div></div>
-        <div class="box"><h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Trámites</h3><div class="row"><span>Primera Vez:</span> <span class="val">${s.types.primera}</span></div><div class="row"><span>Refrendo:</span> <span class="val">${s.types.refrendo}</span></div></div>
-    `;
-    setPdfPreview({ show: true, html: generateHTMLStructure('Reporte Municipal', body), title: `Reporte - ${s.name}` });
   };
 
   const handleDownloadAndOpen = async () => {
@@ -244,7 +286,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
     }
   };
 
-  // --- LÓGICA DE OPERADORES ---
+  // --- HANDLERS OPERADORES ---
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
       if (/^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s]*$/.test(value)) setNewOpName(value);
@@ -256,7 +298,6 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
       if (!newOpName.trim()) errors.name = "El nombre es requerido.";
       if (!newOpEmail.trim()) { errors.email = "El email es requerido."; } else if (!emailRegex.test(newOpEmail)) { errors.email = "Formato inválido."; }
       if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
-      
       const newOp = { id: Date.now(), name: newOpName, email: newOpEmail, role: 'Operador', status: 'active', rejections: 0, approvals: 0 };
       // @ts-ignore
       setOperators([...operators, newOp]);
@@ -270,6 +311,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
   
   const handleQuickDate = (type: 'month' | 'quarter' | 'year') => {
       const end = new Date(); const start = new Date();
+      setActiveFilterBtn(type);
       if (type === 'month') { start.setDate(1); setFilterLabel('Mes Actual'); } 
       else if (type === 'quarter') { start.setMonth(end.getMonth() - 3); setFilterLabel('Último Trimestre'); } 
       else if (type === 'year') { start.setMonth(0, 1); setFilterLabel('Año en Curso'); }
@@ -306,16 +348,16 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
       <main className="flex-1 overflow-y-auto p-6 space-y-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
         {activeTab === 'overview' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                {/* KPIs y Filtros... */}
+                {/* KPIs DINÁMICOS */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                         <p className="text-xs font-bold text-gray-400 uppercase mb-1">Trámites {filterLabel === 'Periodo Personalizado' ? 'en periodo' : filterLabel}</p>
-                        <h2 className="text-2xl font-black text-gray-800 dark:text-white">3,450</h2>
+                        <h2 className="text-2xl font-black text-gray-800 dark:text-white">{globalStats.count.toLocaleString()}</h2>
                         <div className="w-full bg-gray-100 h-1.5 rounded-full mt-2"><div className="bg-indigo-500 h-1.5 rounded-full w-[70%]"></div></div>
                     </div>
                     <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                         <p className="text-xs font-bold text-gray-400 uppercase mb-1">Recaudación Total</p>
-                        <h2 className="text-2xl font-black text-gray-800 dark:text-white">$2.8M</h2>
+                        <h2 className="text-2xl font-black text-gray-800 dark:text-white">${(globalStats.money / 1000000).toFixed(1)}M</h2>
                         <div className="w-full bg-gray-100 h-1.5 rounded-full mt-2"><div className="bg-green-500 h-1.5 rounded-full w-[85%]"></div></div>
                     </div>
                 </div>
@@ -331,14 +373,55 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
                             </div>
                         </div>
                         <div className="flex gap-2 items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-xl border border-gray-200 dark:border-gray-700">
-                             <div className="flex-1 relative"><span className="absolute left-2 top-2 text-[8px] font-bold text-gray-400 uppercase">Desde</span><input type="date" value={dateRange.start} onChange={(e) => { setDateRange({...dateRange, start: e.target.value}); setFilterLabel('Periodo Personalizado'); }} className="w-full bg-transparent pt-4 pb-1 px-2 text-xs font-bold outline-none dark:text-white" /></div>
+                             <div className="flex-1 relative">
+                                 <span className="absolute left-2 top-2 text-[8px] font-bold text-gray-400 uppercase">Desde</span>
+                                 <input 
+                                    type="date" 
+                                    value={dateRange.start} 
+                                    onChange={(e) => { 
+                                        setDateRange({...dateRange, start: e.target.value}); 
+                                        setFilterLabel('Periodo Personalizado'); 
+                                        setActiveFilterBtn('custom'); 
+                                    }} 
+                                    className="w-full bg-transparent pt-4 pb-1 px-2 text-xs font-bold outline-none dark:text-white" 
+                                />
+                             </div>
                              <div className="text-gray-300">-</div>
-                             <div className="flex-1 relative"><span className="absolute left-2 top-2 text-[8px] font-bold text-gray-400 uppercase">Hasta</span><input type="date" value={dateRange.end} onChange={(e) => { setDateRange({...dateRange, end: e.target.value}); setFilterLabel('Periodo Personalizado'); }} className="w-full bg-transparent pt-4 pb-1 px-2 text-xs font-bold outline-none dark:text-white" /></div>
+                             <div className="flex-1 relative">
+                                 <span className="absolute left-2 top-2 text-[8px] font-bold text-gray-400 uppercase">Hasta</span>
+                                 <input 
+                                    type="date" 
+                                    value={dateRange.end} 
+                                    onChange={(e) => { 
+                                        setDateRange({...dateRange, end: e.target.value}); 
+                                        setFilterLabel('Periodo Personalizado'); 
+                                        setActiveFilterBtn('custom'); 
+                                    }} 
+                                    className="w-full bg-transparent pt-4 pb-1 px-2 text-xs font-bold outline-none dark:text-white" 
+                                />
+                             </div>
                         </div>
+                        
+                        {/* BOTONES DE FECHA */}
                         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                            <button onClick={() => handleQuickDate('month')} className="whitespace-nowrap px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-bold border border-indigo-100 hover:bg-indigo-100">Mes Actual</button>
-                            <button onClick={() => handleQuickDate('quarter')} className="whitespace-nowrap px-3 py-1.5 rounded-lg bg-gray-50 text-gray-600 text-xs font-bold border border-gray-200 hover:bg-gray-100">3 Meses</button>
-                            <button onClick={() => handleQuickDate('year')} className="whitespace-nowrap px-3 py-1.5 rounded-lg bg-gray-50 text-gray-600 text-xs font-bold border border-gray-200 hover:bg-gray-100">Año Actual</button>
+                            <button 
+                                onClick={() => handleQuickDate('month')} 
+                                className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${activeFilterBtn === 'month' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'}`}
+                            >
+                                Mes Actual
+                            </button>
+                            <button 
+                                onClick={() => handleQuickDate('quarter')} 
+                                className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${activeFilterBtn === 'quarter' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                            >
+                                3 Meses
+                            </button>
+                            <button 
+                                onClick={() => handleQuickDate('year')} 
+                                className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${activeFilterBtn === 'year' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                            >
+                                Año Actual
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -352,7 +435,10 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
                         {DURANGO_MUNICIPIOS.map((muni, i) => (
                             <div key={muni} onClick={() => setSelectedMuni(muni)} className="px-5 py-4 border-b border-gray-50 dark:border-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 cursor-pointer transition-colors flex justify-between items-center group">
                                 <div className="flex items-center gap-3"><span className="text-xs font-bold text-gray-300 w-4">{i + 1}</span><span className="text-sm font-medium text-gray-700 dark:text-gray-200 group-hover:text-indigo-600 transition-colors">{muni}</span></div>
-                                <span className="material-symbols-outlined text-gray-300 text-sm group-hover:text-indigo-400">bar_chart</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-gray-500">{getMuniStats(muni).total}</span>
+                                    <span className="material-symbols-outlined text-gray-300 text-sm group-hover:text-indigo-400">bar_chart</span>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -360,7 +446,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
             </div>
         )}
 
-        {/* --- VISTA GESTIÓN DE OPERADORES --- */}
+        {/* --- VISTA OPERADORES --- */}
         {activeTab === 'operators' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                  <div className="flex justify-between items-center">
@@ -369,7 +455,6 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
                         <span className="material-symbols-outlined text-sm">add</span> Nuevo
                     </button>
                 </div>
-                {/* FILTROS OPERADORES */}
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-3">
                     <div className="relative">
                         <input type="text" value={searchOp} onChange={(e) => setSearchOp(e.target.value)} placeholder="Buscar por Nombre o Correo..." className="w-full h-11 pl-10 pr-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:border-indigo-500 transition-colors" />
@@ -381,7 +466,6 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
                          <button onClick={() => setFilterOpStatus('inactive')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${filterOpStatus === 'inactive' ? 'bg-gray-100 border-gray-300 text-gray-600' : 'bg-transparent border-gray-200 text-gray-500'}`}>Inactivos</button>
                     </div>
                 </div>
-                {/* LISTA OPERADORES */}
                 {filteredOperators.length > 0 ? (
                     filteredOperators.map(op => (
                         <div key={op.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
@@ -421,7 +505,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
         )}
       </main>
 
-      {/* --- MODAL DETALLE MUNICIPIO (CENTRADO) --- */}
+      {/* --- MODAL DETALLE MUNICIPIO (ACTUALIZADO: Gráfico Real y Colores) --- */}
       {selectedMuni && currentMuniStats && (
           <div className="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 space-y-6 max-h-[85vh] overflow-y-auto">
@@ -433,25 +517,43 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
                       </div>
                       <button onClick={() => setSelectedMuni(null)} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200"><span className="material-symbols-outlined text-sm">close</span></button>
                   </div>
-                  {/* Gráficas... */}
+                  
+                  {/* GRÁFICO DINÁMICO REAL */}
                   <div className="bg-gray-50 dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-700">
-                      <h4 className="font-bold text-sm text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-indigo-500">pie_chart</span> Parque Vehicular</h4>
+                      <h4 className="font-bold text-sm text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-indigo-500">pie_chart</span> Distribución de Trámites</h4>
                       <div className="flex items-center justify-around">
-                          <div className="relative w-28 h-28 rounded-full shadow-lg" style={{ background: `conic-gradient(#4F46E5 0% ${currentMuniStats.auto.pct}%, #ec4899 ${currentMuniStats.auto.pct}% 100%)` }}>
+                          {/* Pie Chart: Azul (Primera) y Naranja (Renovación) */}
+                          <div className="relative w-28 h-28 rounded-full shadow-lg" style={{ background: `conic-gradient(#3b82f6 0% ${currentMuniStats.breakdown.primera.pct}%, #fb923c ${currentMuniStats.breakdown.primera.pct}% 100%)` }}>
                                <div className="absolute inset-3 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center flex-col"><span className="text-xs text-gray-400">Total</span><span className="text-xl font-black text-gray-800 dark:text-white">{currentMuniStats.total}</span></div>
                           </div>
                           <div className="space-y-2 text-sm">
-                              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-indigo-600"></div><span className="text-gray-500">Autos ({currentMuniStats.auto.pct}%)</span></div>
-                              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-pink-500"></div><span className="text-gray-500">Motos ({currentMuniStats.moto.pct}%)</span></div>
+                              {/* Leyendas con colores coincidentes */}
+                              <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 rounded bg-blue-500"></div>
+                                  <span className="text-gray-500">Primera Vez ({currentMuniStats.breakdown.primera.pct}%)</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 rounded bg-orange-400"></div>
+                                  <span className="text-gray-500">Renovación ({currentMuniStats.breakdown.renovacion.pct}%)</span>
+                              </div>
                           </div>
                       </div>
                   </div>
+
+                  {/* BARRAS DE PROGRESO (Coinciden con el Pie Chart) */}
                   <div className="bg-gray-50 dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-700">
-                      <h4 className="font-bold text-sm text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-orange-500">bar_chart</span> Tipos de Trámite</h4>
+                      <h4 className="font-bold text-sm text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-orange-500">bar_chart</span> Desglose Numérico</h4>
                       <div className="space-y-4">
-                          <div><div className="flex justify-between text-xs mb-1 font-medium"><span>Refrendo</span><span>{currentMuniStats.types.refrendo}</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-green-500 h-2 rounded-full" style={{ width: '60%' }}></div></div></div>
-                          <div><div className="flex justify-between text-xs mb-1 font-medium"><span>Primera Vez</span><span>{currentMuniStats.types.primera}</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full" style={{ width: '30%' }}></div></div></div>
-                          <div><div className="flex justify-between text-xs mb-1 font-medium"><span>Reposición</span><span>{currentMuniStats.types.reposicion}</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-orange-400 h-2 rounded-full" style={{ width: '10%' }}></div></div></div>
+                          <div>
+                              <div className="flex justify-between text-xs mb-1 font-medium"><span>Primera Vez</span><span>{currentMuniStats.breakdown.primera.count}</span></div>
+                              {/* Barra Azul */}
+                              <div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full" style={{ width: `${currentMuniStats.breakdown.primera.pct}%` }}></div></div>
+                          </div>
+                          <div>
+                              <div className="flex justify-between text-xs mb-1 font-medium"><span>Renovación</span><span>{currentMuniStats.breakdown.renovacion.count}</span></div>
+                              {/* Barra Naranja */}
+                              <div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-orange-400 h-2 rounded-full" style={{ width: `${currentMuniStats.breakdown.renovacion.pct}%` }}></div></div>
+                          </div>
                       </div>
                   </div>
                   <button onClick={handlePreviewMuniPDF} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 flex items-center justify-center gap-2">
@@ -461,7 +563,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
           </div>
       )}
 
-      {/* --- MODAL AGREGAR OPERADOR (CENTRADO) --- */}
+      {/* --- MODAL AGREGAR OPERADOR --- */}
       {showAddModal && (
         <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
              <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 space-y-4">
@@ -488,28 +590,21 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
       {pdfPreview && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-white w-full max-w-2xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
-                  {/* Loading Overlay */}
                   {isGenerating && (
                       <div className="absolute inset-0 z-50 bg-white/80 flex flex-col items-center justify-center backdrop-blur-sm">
                           <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent mb-4"></div>
                           <p className="font-bold text-indigo-900">Generando PDF...</p>
                       </div>
                   )}
-
-                  {/* Cabecera */}
                   <div className="px-4 py-3 border-b flex justify-between items-center bg-gray-50">
                       <h3 className="font-bold text-gray-700">{pdfPreview.title}</h3>
                       <button onClick={() => setPdfPreview(null)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
                           <span className="material-symbols-outlined">close</span>
                       </button>
                   </div>
-                  
-                  {/* Contenido HTML (Preview Scrollable) */}
                   <div className="flex-1 overflow-auto p-4 bg-gray-200">
                       <div className="bg-white shadow-xl min-h-full p-4 mx-auto w-full md:w-[21cm]" dangerouslySetInnerHTML={{ __html: pdfPreview.html }}></div>
                   </div>
-
-                  {/* Pie con Botón de Descarga Real */}
                   <div className="p-4 border-t bg-white flex justify-end gap-3 safe-bottom">
                       <button onClick={() => setPdfPreview(null)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-lg">Cerrar</button>
                       <button onClick={handleDownloadAndOpen} disabled={isGenerating} className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg shadow-lg hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserData } from '../types';
 
 interface CompleteProfileScreenProps {
@@ -42,17 +42,18 @@ const SEPOMEX_DATA: Record<string, { municipality: string, state: string, coloni
 
 // --- COMPONENTES UI ---
 
-const InputField = ({ label, value, onChange, placeholder, width = 'full', numeric = false, max = 50, readOnly = false, error }: any) => (
+// Agregamos `innerRef` para pasar la referencia
+const InputField = ({ label, value, onChange, placeholder, width = 'full', numeric = false, max = 50, readOnly = false, error, innerRef }: any) => (
     <div className={`space-y-1 ${width === 'half' ? 'col-span-1' : 'col-span-2'}`}>
         <label className={`text-[10px] font-bold uppercase ml-1 ${error ? 'text-red-500' : 'text-gray-500'}`}>
             {label}
         </label>
         <div className="relative">
             <input 
+                ref={innerRef} // Asignamos la referencia aquí
                 value={value || ''} 
                 onChange={(e) => {
                     if (readOnly) return;
-                    // Aquí solo pasamos el evento, la validación la hace el padre (handleSafeInput)
                     onChange(e.target.value); 
                 }}
                 maxLength={max}
@@ -74,7 +75,7 @@ const InputField = ({ label, value, onChange, placeholder, width = 'full', numer
     </div>
 );
 
-const PhoneInput = ({ ladaValue, phoneValue, onLadaChange, onPhoneChange, error }: any) => (
+const PhoneInput = ({ ladaValue, phoneValue, onLadaChange, onPhoneChange, error, innerRef }: any) => (
     <div className="col-span-2 space-y-1">
         <label className={`text-[10px] font-bold uppercase ml-1 ${error ? 'text-red-500' : 'text-gray-500'}`}>Teléfono</label>
         <div className="flex gap-2 relative">
@@ -90,9 +91,10 @@ const PhoneInput = ({ ladaValue, phoneValue, onLadaChange, onPhoneChange, error 
                 <span className="absolute right-2 top-4 text-[8px] text-gray-400">▼</span>
             </div>
             <input 
+                ref={innerRef} // Referencia aquí
                 value={phoneValue}
                 onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, ''); // Solo números
+                    const val = e.target.value.replace(/\D/g, ''); 
                     if (val.length <= 10) onPhoneChange(val);
                 }}
                 placeholder="10 Dígitos"
@@ -153,41 +155,38 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
   const [coloniesList, setColoniesList] = useState<string[]>([]);
   const [emergColoniesList, setEmergColoniesList] = useState<string[]>([]);
 
-  // --- FUNCIÓN MAESTRA DE SANITIZACIÓN DE ENTRADAS ---
-  // Esta función es el "firewall" del frontend para evitar caracteres raros o SQL
+  // REFERENCIAS PARA AUTO-FOCUS (SOLO DE CAMPOS EDITABLES)
+  const inputRefs = {
+      rfc: useRef<HTMLInputElement>(null),
+      workplace: useRef<HTMLInputElement>(null),
+      address: useRef<HTMLInputElement>(null),
+      zipCode: useRef<HTMLInputElement>(null),
+      colony: useRef<HTMLSelectElement | HTMLInputElement>(null), // Puede ser select o input
+      municipality: useRef<HTMLSelectElement>(null),
+      phone: useRef<HTMLInputElement>(null),
+      
+      emergFirstName: useRef<HTMLInputElement>(null),
+      emergPaternal: useRef<HTMLInputElement>(null),
+      emergAddress: useRef<HTMLInputElement>(null),
+      emergZipCode: useRef<HTMLInputElement>(null),
+      emergPhone: useRef<HTMLInputElement>(null),
+  };
+
   const handleSafeInput = (field: string, rawValue: string, type: 'text' | 'alphanumeric' | 'numeric' | 'address' = 'alphanumeric') => {
       let value = rawValue.toUpperCase();
-
-      // 1. ELIMINAR CARACTERES DE INYECCIÓN SQL COMUNES
-      // Quitamos: comillas simples, dobles, punto y coma, guiones dobles, backslash
       value = value.replace(/['";\\]/g, "").replace(/--/g, "");
 
-      // 2. VALIDACIÓN POR TIPO (WHITELISTING)
       let isValid = true;
-
       switch (type) {
-          case 'text': 
-              // Solo letras y espacios (Nombres)
-              if (!/^[A-ZÑ\s]*$/.test(value)) isValid = false;
-              break;
-          case 'numeric':
-              // Solo números
-              if (!/^\d*$/.test(value)) isValid = false;
-              break;
-          case 'address':
-              // Letras, números, espacios, #, ., -, / (Direcciones)
-              if (!/^[A-Z0-9Ñ\s#.\-\/]*$/.test(value)) isValid = false;
-              break;
-          case 'alphanumeric':
-              // Letras y números (RFC, CURP, Observaciones)
-              if (!/^[A-Z0-9Ñ\s]*$/.test(value)) isValid = false;
-              break;
+          case 'text': if (!/^[A-ZÑ\s]*$/.test(value)) isValid = false; break;
+          case 'numeric': if (!/^\d*$/.test(value)) isValid = false; break;
+          case 'address': if (!/^[A-Z0-9Ñ\s#.\-\/]*$/.test(value)) isValid = false; break;
+          case 'alphanumeric': if (!/^[A-Z0-9Ñ\s]*$/.test(value)) isValid = false; break;
       }
 
       if (isValid) {
           setForm(prev => ({ ...prev, [field]: value }));
-          // Limpiar error del campo si existe
-          if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+          if (errors[field]) setErrors(prev => { const n = {...prev}; delete n[field]; return n; });
       }
   };
 
@@ -221,6 +220,19 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
       return null;
   };
 
+  // FUNCIÓN PARA HACER SCROLL AL PRIMER ERROR
+  const scrollToFirstError = (errorList: any) => {
+      const errorKey = Object.keys(errorList)[0]; // Obtiene el primer key con error (ej: 'rfc')
+      if (errorKey) {
+          // @ts-ignore - Accedemos dinámicamente a las refs
+          const ref = inputRefs[errorKey];
+          if (ref && ref.current) {
+              ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              ref.current.focus();
+          }
+      }
+  };
+
   const validateStep = (step: number) => {
       const newErrors: any = {};
       let isValid = true;
@@ -248,7 +260,11 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
       }
 
       setErrors(newErrors);
-      if (Object.keys(newErrors).length > 0) isValid = false;
+      
+      if (Object.keys(newErrors).length > 0) {
+          isValid = false;
+          scrollToFirstError(newErrors); // <-- AQUÍ LLAMAMOS AL SCROLL
+      }
       return isValid;
   };
 
@@ -277,7 +293,7 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
     <div className="flex flex-col h-full bg-gray-50 dark:bg-background-dark">
       
       {/* HEADER */}
-      <header className="px-6 pt-8 pb-4 bg-white dark:bg-surface-dark shadow-sm sticky top-0 z-10">
+      <header className="px-6 pt-8 pb-4 bg-white dark:bg-surface-dark shadow-sm sticky top-0 z-10 safe-top">
         <div className="flex items-center gap-3 mb-4">
              <button onClick={currentStep > 1 ? () => setCurrentStep(prev => prev - 1) : onBack} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 hover:bg-gray-200">
                 <span className="material-symbols-outlined text-sm">arrow_back</span>
@@ -299,7 +315,7 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
       </header>
 
       {/* BODY */}
-      <main className="flex-1 overflow-y-auto px-6 py-6">
+      <main className="flex-1 overflow-y-auto px-6 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         
         {/* --- PASO 1 --- */}
         {currentStep === 1 && (
@@ -311,6 +327,7 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
                 <InputField label="Correo" value={form.email} readOnly={true} width="half" />
 
                 <InputField 
+                    innerRef={inputRefs.rfc} // Ref
                     label="RFC" 
                     value={form.rfc} 
                     onChange={(val: string) => handleSafeInput('rfc', val, 'alphanumeric')} 
@@ -346,7 +363,14 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
                     </label>
                 </div>
 
-                <InputField label="Lugar de Trabajo" value={form.workplace} onChange={(val: string) => handleSafeInput('workplace', val, 'alphanumeric')} placeholder="Empresa o Institución" error={errors.workplace} />
+                <InputField 
+                    innerRef={inputRefs.workplace} // Ref
+                    label="Lugar de Trabajo" 
+                    value={form.workplace} 
+                    onChange={(val: string) => handleSafeInput('workplace', val, 'alphanumeric')} 
+                    placeholder="Empresa o Institución" 
+                    error={errors.workplace} 
+                />
                 <InputField label="Restricciones" value={form.restrictions} onChange={(val: string) => handleSafeInput('restrictions', val, 'text')} placeholder="USA LENTES" />
                 <div className="col-span-2 space-y-1"><label className="text-[10px] font-bold uppercase text-gray-500 ml-1">Observaciones Médicas</label><textarea value={form.medicalNotes} onChange={(e) => handleSafeInput('medicalNotes', e.target.value, 'alphanumeric')} className="w-full h-20 p-3 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 outline-none font-bold uppercase resize-none" /></div>
             </div>
@@ -355,19 +379,47 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
         {/* --- PASO 2: DOMICILIO --- */}
         {currentStep === 2 && (
             <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-right">
-                <InputField label="Calle y Número" value={form.address} onChange={(val: string) => handleSafeInput('address', val, 'address')} placeholder="AV. 20 DE NOVIEMBRE #123" error={errors.address} />
+                <InputField 
+                    innerRef={inputRefs.address} // Ref
+                    label="Calle y Número" 
+                    value={form.address} 
+                    onChange={(val: string) => handleSafeInput('address', val, 'address')} 
+                    placeholder="AV. 20 DE NOVIEMBRE #123" 
+                    error={errors.address} 
+                />
                 
-                <InputField label="Código Postal" value={form.zipCode} onChange={(val: string) => handleSafeInput('zipCode', val, 'numeric')} placeholder="34000" numeric width="half" max={5} error={errors.zipCode} />
+                <InputField 
+                    innerRef={inputRefs.zipCode} // Ref
+                    label="Código Postal" 
+                    value={form.zipCode} 
+                    onChange={(val: string) => handleSafeInput('zipCode', val, 'numeric')} 
+                    placeholder="34000" 
+                    numeric width="half" max={5} 
+                    error={errors.zipCode} 
+                />
                 
                 <div className="col-span-1 space-y-1">
                     <label className={`text-[10px] font-bold uppercase ml-1 ${errors.colony ? 'text-red-500' : 'text-gray-500'}`}>Colonia</label>
                     {coloniesList.length > 0 ? (
-                        <select value={form.colony} onChange={(e) => setForm({...form, colony: e.target.value})} className={`w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 outline-none font-bold uppercase ${errors.colony ? 'border-red-500' : 'border-gray-100 dark:border-gray-700'}`}>
+                        <select 
+                            // @ts-ignore
+                            ref={inputRefs.colony} // Ref Select
+                            value={form.colony} 
+                            onChange={(e) => setForm({...form, colony: e.target.value})} 
+                            className={`w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 outline-none font-bold uppercase ${errors.colony ? 'border-red-500' : 'border-gray-100 dark:border-gray-700'}`}
+                        >
                             <option value="">Seleccione...</option>
                             {coloniesList.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                     ) : (
-                        <input value={form.colony} onChange={(e) => handleSafeInput('colony', e.target.value, 'address')} className={`w-full h-12 px-4 rounded-xl bg-white border-2 outline-none font-bold uppercase ${errors.colony ? 'border-red-500' : 'border-gray-100'}`} placeholder="ESCRIBE MANUALMENTE" />
+                        <input 
+                            // @ts-ignore
+                            ref={inputRefs.colony} // Ref Input
+                            value={form.colony} 
+                            onChange={(e) => handleSafeInput('colony', e.target.value, 'address')} 
+                            className={`w-full h-12 px-4 rounded-xl bg-white border-2 outline-none font-bold uppercase ${errors.colony ? 'border-red-500' : 'border-gray-100'}`} 
+                            placeholder="ESCRIBE MANUALMENTE" 
+                        />
                     )}
                     {errors.colony && <p className="text-[9px] text-red-500 font-bold ml-1">{errors.colony}</p>}
                 </div>
@@ -377,7 +429,12 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
                 ) : (
                     <div className="col-span-1 space-y-1">
                         <label className={`text-[10px] font-bold uppercase ml-1 ${errors.municipality ? 'text-red-500' : 'text-gray-500'}`}>Municipio</label>
-                        <select value={form.municipality} onChange={(e) => setForm({...form, municipality: e.target.value})} className={`w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 outline-none font-bold uppercase ${errors.municipality ? 'border-red-500' : 'border-gray-100 dark:border-gray-700'}`}>
+                        <select 
+                            ref={inputRefs.municipality} // Ref
+                            value={form.municipality} 
+                            onChange={(e) => setForm({...form, municipality: e.target.value})} 
+                            className={`w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 outline-none font-bold uppercase ${errors.municipality ? 'border-red-500' : 'border-gray-100 dark:border-gray-700'}`}
+                        >
                             <option value="">Seleccione...</option>
                             {DURANGO_MUNICIPIOS.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
@@ -386,7 +443,15 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
 
                 <InputField label="Localidad" value={form.locality} onChange={(val: string) => handleSafeInput('locality', val, 'text')} width="half" />
                 <InputField label="Entidad" value={form.state} readOnly={true} width="full" />
-                <PhoneInput ladaValue={form.phoneLada} phoneValue={form.phone} onLadaChange={(v: string) => setForm({...form, phoneLada: v})} onPhoneChange={(v: string) => setForm({...form, phone: v})} error={errors.phone} />
+                
+                <PhoneInput 
+                    innerRef={inputRefs.phone} // Ref
+                    ladaValue={form.phoneLada} 
+                    phoneValue={form.phone} 
+                    onLadaChange={(v: string) => setForm({...form, phoneLada: v})} 
+                    onPhoneChange={(v: string) => setForm({...form, phone: v})} 
+                    error={errors.phone} 
+                />
             </div>
         )}
 
@@ -395,14 +460,41 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
             <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-right">
                 <div className="col-span-2 p-3 bg-red-50 rounded-xl mb-2 flex items-center gap-2 text-red-700"><span className="material-symbols-outlined">warning</span><p className="text-xs font-bold">En caso de accidente contactar a:</p></div>
                 
-                <InputField label="Nombre(s)" value={form.emergFirstName} onChange={(val: string) => handleSafeInput('emergFirstName', val, 'text')} error={errors.emergFirstName} />
-                <InputField label="Apellido Paterno" value={form.emergPaternal} onChange={(val: string) => handleSafeInput('emergPaternal', val, 'text')} width="half" error={errors.emergPaternal} />
+                <InputField 
+                    innerRef={inputRefs.emergFirstName} // Ref
+                    label="Nombre(s)" 
+                    value={form.emergFirstName} 
+                    onChange={(val: string) => handleSafeInput('emergFirstName', val, 'text')} 
+                    error={errors.emergFirstName} 
+                />
+                <InputField 
+                    innerRef={inputRefs.emergPaternal} // Ref
+                    label="Apellido Paterno" 
+                    value={form.emergPaternal} 
+                    onChange={(val: string) => handleSafeInput('emergPaternal', val, 'text')} 
+                    width="half" 
+                    error={errors.emergPaternal} 
+                />
                 <InputField label="Apellido Materno" value={form.emergMaternal} onChange={(val: string) => handleSafeInput('emergMaternal', val, 'text')} width="half" />
                 
                 <div className="col-span-2 border-t border-gray-100 my-2"></div>
                 
-                <InputField label="Calle y Número (Emergencia)" value={form.emergAddress} onChange={(val: string) => handleSafeInput('emergAddress', val, 'address')} error={errors.emergAddress} />
-                <InputField label="C.P." value={form.emergZipCode} onChange={(val: string) => handleSafeInput('emergZipCode', val, 'numeric')} placeholder="34000" numeric width="half" max={5} error={errors.emergZipCode} />
+                <InputField 
+                    innerRef={inputRefs.emergAddress} // Ref
+                    label="Calle y Número (Emergencia)" 
+                    value={form.emergAddress} 
+                    onChange={(val: string) => handleSafeInput('emergAddress', val, 'address')} 
+                    error={errors.emergAddress} 
+                />
+                <InputField 
+                    innerRef={inputRefs.emergZipCode} // Ref
+                    label="C.P." 
+                    value={form.emergZipCode} 
+                    onChange={(val: string) => handleSafeInput('emergZipCode', val, 'numeric')} 
+                    placeholder="34000" 
+                    numeric width="half" max={5} 
+                    error={errors.emergZipCode} 
+                />
                 
                 <div className="col-span-1 space-y-1">
                     <label className="text-[10px] font-bold uppercase text-gray-500 ml-1">Colonia</label>
@@ -418,7 +510,15 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
 
                 <InputField label="Municipio" value={form.emergMunicipality} onChange={(val: string) => handleSafeInput('emergMunicipality', val, 'text')} width="half" />
                 <InputField label="Localidad" value={form.emergLocality} onChange={(val: string) => handleSafeInput('emergLocality', val, 'text')} width="half" />
-                <PhoneInput ladaValue={form.emergPhoneLada} phoneValue={form.emergPhone} onLadaChange={(v: string) => setForm({...form, emergPhoneLada: v})} onPhoneChange={(v: string) => setForm({...form, emergPhone: v})} error={errors.emergPhone} />
+                
+                <PhoneInput 
+                    innerRef={inputRefs.emergPhone} // Ref
+                    ladaValue={form.emergPhoneLada} 
+                    phoneValue={form.emergPhone} 
+                    onLadaChange={(v: string) => setForm({...form, emergPhoneLada: v})} 
+                    onPhoneChange={(v: string) => setForm({...form, emergPhone: v})} 
+                    error={errors.emergPhone} 
+                />
             </div>
         )}
 

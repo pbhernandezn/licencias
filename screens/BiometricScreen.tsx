@@ -12,8 +12,7 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
   const [cameraError, setCameraError] = useState<string | null>(null);
   const webcamRef = useRef<Webcam>(null);
 
-  // CORRECCIÓN 1: Quitamos width/height ideales. 
-  // Dejamos que el navegador elija la resolución nativa del sensor (suele ser más angular).
+  // Sin resolución forzada para que use la nativa del celular (evita zoom borroso)
   const videoConstraints = {
     facingMode: "user"
   };
@@ -51,6 +50,7 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
     if (imageSrc) {
         onComplete(imageSrc);
     } else {
+        // Fallback para simuladores
         onComplete('https://randomuser.me/api/portraits/men/32.jpg');
     }
   }, [webcamRef, onComplete]);
@@ -68,7 +68,7 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
     <div className="fixed inset-0 z-50 flex flex-col bg-black h-[100dvh] w-screen overflow-hidden">
       
       {/* 1. ENCABEZADO */}
-      <div className="shrink-0 h-16 px-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-20 absolute top-0 left-0 right-0">
+      <div className="shrink-0 h-16 px-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-20 absolute top-0 left-0 right-0 safe-top">
         <button 
             onClick={onBack} 
             className="w-10 h-10 rounded-full bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-all"
@@ -90,12 +90,16 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
                 ref={webcamRef}
                 screenshotFormat="image/jpeg"
                 videoConstraints={videoConstraints}
-                // Usamos object-cover para llenar, pero si sigue muy cerca, 
-                // podrías probar 'object-contain' (aunque dejará bordes negros).
                 className="absolute inset-0 w-full h-full object-cover" 
                 mirrored={true}
                 onUserMediaError={handleUserMediaError}
                 onUserMedia={() => setCameraError(null)}
+                
+                // --- PROPIEDADES AGREGADAS PARA CORREGIR ERROR DE TYPESCRIPT ---
+                screenshotQuality={0.92}
+                disablePictureInPicture={false}
+                forceScreenshotSourceSize={false}
+                imageSmoothing={true}
             />
         ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-10 text-center z-10 bg-gray-900">
@@ -111,27 +115,24 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
                 <defs>
                     <mask id="mask">
                         <rect width="100%" height="100%" fill="white" />
-                        
-                        {/* CORRECCIÓN 2: Óvalo MÁS PEQUEÑO */}
-                        {/* Antes rx="38%" ry="30%" -> Ahora rx="28%" ry="22%" */}
-                        {/* Esto obliga al usuario a alejar el teléfono para encajar su cara */}
+                        {/* Óvalo más pequeño para obligar a alejar el teléfono */}
                         <ellipse cx="50%" cy="45%" rx="28%" ry="22%" fill="black" />
                     </mask>
                 </defs>
                 <rect width="100%" height="100%" fill="rgba(0,0,0,0.85)" mask="url(#mask)" />
             </svg>
             
-            {/* Borde visual del óvalo (Ajustado al nuevo tamaño) */}
+            {/* Borde visual del óvalo */}
             <div className="absolute inset-0 flex items-center justify-center" style={{ paddingBottom: '10%' }}>
-                {/* Ajustamos width y max-h para coincidir con la elipse más pequeña */}
                 <div className={`w-[56%] aspect-[3/4] max-h-[44%] rounded-[50%] border-2 border-dashed transition-all duration-500 ${isScanning ? 'border-primary shadow-[0_0_50px_rgba(59,130,246,0.6)]' : 'border-white/40'}`}></div>
             </div>
 
+            {/* Escáner animado */}
             {isScanning && (
                 <div className="absolute inset-0 flex items-center justify-center" style={{ paddingBottom: '10%' }}>
-                     <div className="w-[56%] aspect-[3/4] max-h-[44%] rounded-[50%] overflow-hidden relative">
-                         <div className="absolute top-0 left-0 right-0 h-1 bg-blue-400 shadow-[0_0_20px_rgba(59,130,246,1)] animate-scan"></div>
-                     </div>
+                      <div className="w-[56%] aspect-[3/4] max-h-[44%] rounded-[50%] overflow-hidden relative">
+                          <div className="absolute top-0 left-0 right-0 h-1 bg-blue-400 shadow-[0_0_20px_rgba(59,130,246,1)] animate-scan"></div>
+                      </div>
                 </div>
             )}
         </div>
@@ -147,7 +148,7 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
       </div>
 
       {/* 3. CONTROLES */}
-      <div className="shrink-0 bg-black/90 backdrop-blur-xl p-8 pb-10 flex flex-col items-center justify-center z-20 border-t border-white/10 rounded-t-3xl absolute bottom-0 left-0 right-0">
+      <div className="shrink-0 bg-black/90 backdrop-blur-xl p-8 pb-10 flex flex-col items-center justify-center z-20 border-t border-white/10 rounded-t-3xl absolute bottom-0 left-0 right-0 safe-bottom">
           
           {!isScanning ? (
               <button 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-// IMPORTACIONES NUEVAS PARA PDF
+// IMPORTACIONES CLAVE
+import { Capacitor } from '@capacitor/core';
 import html2pdf from 'html2pdf.js';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { FileOpener } from '@capacitor-community/file-opener';
@@ -51,7 +52,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
 
   // PDF Preview
   const [pdfPreview, setPdfPreview] = useState<{ show: boolean, html: string, title: string } | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false); // Para mostrar carga al descargar
+  const [isGenerating, setIsGenerating] = useState(false); 
 
   // Inputs Nuevo Operador
   const [newOpName, setNewOpName] = useState('');
@@ -101,10 +102,8 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
 
   // --- LÓGICA DE EXPORTACIÓN ---
 
-  // 1. EXCEL (CSV) - VERSIÓN NATIVA CAPACITOR
   const downloadExcel = async () => {
     try {
-      // 1. Generar el contenido del CSV
       let csvContent = "\uFEFFID,Municipio,Total Tramites,Autos,Motos,Recaudacion Estimada\n"; 
       DURANGO_MUNICIPIOS.forEach((muni, index) => {
           const stats = getMuniStats(muni);
@@ -112,40 +111,44 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
           csvContent += `${index + 1},"${muni}",${stats.total},${stats.auto.count},${stats.moto.count},"$${cash}"\n`;
       });
 
-      // 2. Definir nombre único
       const fileName = `Reporte_Durango_${Date.now()}.csv`;
 
-      // 3. Guardar el archivo físicamente en el celular
-      const savedFile = await Filesystem.writeFile({
-          path: fileName,
-          data: csvContent,
-          directory: Directory.Documents, // Se guarda en "Documentos"
-          encoding: Encoding.UTF8 // Importante: Texto plano
-      });
-
-      // 4. Abrir el archivo inmediatamente (Sheets, Excel, etc.)
-      await FileOpener.open({
-          filePath: savedFile.uri,
-          contentType: 'text/csv', // Le dice al celular que es una hoja de cálculo
-      });
-
+      if (Capacitor.isNativePlatform()) {
+          const savedFile = await Filesystem.writeFile({
+              path: fileName,
+              data: csvContent,
+              directory: Directory.Documents,
+              encoding: Encoding.UTF8
+          });
+          await FileOpener.open({ filePath: savedFile.uri, contentType: 'text/csv' });
+      } else {
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const link = document.createElement("a");
+          const url = URL.createObjectURL(blob);
+          link.setAttribute("href", url);
+          link.setAttribute("download", fileName);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      }
     } catch (error) {
       console.error("Error al exportar Excel:", error);
-      alert("No se pudo abrir el archivo. Asegúrate de tener una app como Google Sheets o Excel instalada.");
+      alert("No se pudo descargar el archivo.");
     }
   };
-  // 2. PREPARAR HTML
+
   const generateHTMLStructure = (title: string, contentBody: string) => {
     return `
         <html>
         <head>
             <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-                body { font-family: 'Helvetica', sans-serif; padding: 20px; color: #333; background: white; }
-                h1 { color: #2c3e50; margin-bottom: 5px; font-size: 24px; }
-                .header { border-bottom: 2px solid #2c3e50; padding-bottom: 10px; margin-bottom: 20px; }
-                table { width: 100%; border-collapse: collapse; font-size: 10px; }
-                th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+                body { font-family: 'Helvetica', sans-serif; padding: 15px; color: #333; background: white; font-size: 12px; }
+                h1 { color: #2c3e50; margin-bottom: 5px; font-size: 20px; }
+                .header { border-bottom: 2px solid #2c3e50; padding-bottom: 10px; margin-bottom: 15px; }
+                table { width: 100%; border-collapse: collapse; font-size: 9px; }
+                th, td { border: 1px solid #ddd; padding: 4px; text-align: left; }
                 th { background-color: #2c3e50; color: white; }
                 tr:nth-child(even) { background-color: #f9f9f9; }
                 .box { border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 8px; background: #fafafa; }
@@ -157,10 +160,10 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
         <body>
             <div class="header">
                 <h1>${title}</h1>
-                <p style="font-size: 12px; margin: 0;"><strong>Fecha:</strong> ${formatDateMX(todayISO)} | <strong>Periodo:</strong> ${filterLabel} (${getRangeText()})</p>
+                <p style="font-size: 10px; margin: 0; color: #666;"><strong>Fecha:</strong> ${formatDateMX(todayISO)} <br/> <strong>Periodo:</strong> ${filterLabel} <br/> (${getRangeText()})</p>
             </div>
             ${contentBody}
-            <div class="footer">Gobierno del Estado de Durango - Plataforma Digital Segura</div>
+            <div class="footer">Gobierno del Estado de Durango - Plataforma Digital</div>
         </body>
         </html>
     `;
@@ -171,26 +174,22 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
     let grandAutos = 0;
     let grandMotos = 0;
     let rowsHTML = '';
-    
     DURANGO_MUNICIPIOS.forEach(muni => {
         const stats = getMuniStats(muni);
         const cash = stats.total * 900;
         grandTotal += stats.total;
         grandAutos += stats.auto.count;
         grandMotos += stats.moto.count;
-        rowsHTML += `<tr><td>${muni}</td><td><strong>${stats.total}</strong></td><td>${stats.auto.count}</td><td>${stats.moto.count}</td><td>$${cash.toLocaleString()}</td></tr>`;
+        const shortName = muni.length > 12 ? muni.substring(0,10) + '..' : muni;
+        rowsHTML += `<tr><td>${shortName}</td><td><strong>${stats.total}</strong></td><td>${stats.auto.count}</td><td>${stats.moto.count}</td><td>$${(cash/1000).toFixed(1)}k</td></tr>`;
     });
-
     const body = `
         <table>
-            <thead><tr><th>Municipio</th><th>Total</th><th>Autos</th><th>Motos</th><th>Recaudación</th></tr></thead>
-            <tbody>
-                ${rowsHTML}
-                <tr style="background-color: #eef2ff; font-weight: bold;"><td>TOTAL ESTATAL</td><td>${grandTotal}</td><td>${grandAutos}</td><td>${grandMotos}</td><td>-</td></tr>
-            </tbody>
+            <thead><tr><th>Mpio</th><th>Total</th><th>Autos</th><th>Motos</th><th>$ (Est)</th></tr></thead>
+            <tbody>${rowsHTML}<tr style="background-color: #eef2ff; font-weight: bold;"><td>TOTAL</td><td>${grandTotal}</td><td>${grandAutos}</td><td>${grandMotos}</td><td>-</td></tr></tbody>
         </table>
     `;
-    setPdfPreview({ show: true, html: generateHTMLStructure('Reporte Estatal Global', body), title: 'Reporte Global' });
+    setPdfPreview({ show: true, html: generateHTMLStructure('Reporte Global', body), title: 'Reporte Global' });
   };
 
   const handlePreviewMuniPDF = () => {
@@ -198,82 +197,54 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
     const s = currentMuniStats;
     const body = `
         <h2 style="color: #4F46E5; margin-top:0;">${s.name}</h2>
-        <div class="box">
-            <h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Resumen</h3>
-            <div class="row"><span>Total Trámites:</span> <span class="val">${s.total}</span></div>
-        </div>
-        <div class="box">
-            <h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Parque Vehicular</h3>
-            <div class="row"><span>Autos:</span> <span class="val">${s.auto.count} (${s.auto.pct}%)</span></div>
-            <div class="row"><span>Motos:</span> <span class="val">${s.moto.count} (${s.moto.pct}%)</span></div>
-        </div>
-        <div class="box">
-            <h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Trámites</h3>
-            <div class="row"><span>Primera Vez:</span> <span class="val">${s.types.primera}</span></div>
-            <div class="row"><span>Refrendo:</span> <span class="val">${s.types.refrendo}</span></div>
-        </div>
+        <div class="box"><h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Resumen</h3><div class="row"><span>Total Trámites:</span> <span class="val">${s.total}</span></div></div>
+        <div class="box"><h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Parque Vehicular</h3><div class="row"><span>Autos:</span> <span class="val">${s.auto.count} (${s.auto.pct}%)</span></div><div class="row"><span>Motos:</span> <span class="val">${s.moto.count} (${s.moto.pct}%)</span></div></div>
+        <div class="box"><h3 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #ddd;">Trámites</h3><div class="row"><span>Primera Vez:</span> <span class="val">${s.types.primera}</span></div><div class="row"><span>Refrendo:</span> <span class="val">${s.types.refrendo}</span></div></div>
     `;
     setPdfPreview({ show: true, html: generateHTMLStructure('Reporte Municipal', body), title: `Reporte - ${s.name}` });
   };
 
-  // --- FUNCIÓN MAESTRA: GENERAR, GUARDAR Y ABRIR PDF EN ANDROID ---
   const handleDownloadAndOpen = async () => {
     if (!pdfPreview) return;
     setIsGenerating(true);
-
     try {
-        // 1. Crear un elemento temporal en el DOM
         const element = document.createElement('div');
         element.innerHTML = pdfPreview.html;
-        element.style.width = '210mm';
+        element.style.width = '210mm'; 
         element.style.padding = '20px';
+        element.style.fontSize = '14px'; 
         document.body.appendChild(element);
 
-        // 2. Configuración de html2pdf (CORREGIDA CON 'as const')
         const opt = {
-            margin:       0,
-            filename:     'reporte.pdf',
-            image:        { type: 'jpeg' as const, quality: 0.98 }, // <--- AQUÍ ESTÁ EL ARREGLO
-            html2canvas:  { scale: 2, useCORS: true },
-            // También agregamos 'as const' aquí para evitar errores similares con jsPDF
-            jsPDF:        { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const } 
+            margin: 5,
+            filename: `Reporte_${Date.now()}.pdf`,
+            image: { type: 'jpeg' as const, quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const } 
         };
 
-        // 3. Generar el PDF como Base64
-        const pdfBase64 = await html2pdf().set(opt).from(element).outputPdf('datauristring');
-        
-        // Limpiamos el DOM
+        if (Capacitor.isNativePlatform()) {
+            const pdfBase64 = await html2pdf().set(opt).from(element).outputPdf('datauristring');
+            const base64Data = pdfBase64.split(',')[1];
+            const savedFile = await Filesystem.writeFile({
+                path: opt.filename,
+                data: base64Data,
+                directory: Directory.Documents, 
+            });
+            await FileOpener.open({ filePath: savedFile.uri, contentType: 'application/pdf' });
+        } else {
+            await html2pdf().set(opt).from(element).save();
+        }
         document.body.removeChild(element);
-
-        // 4. Limpiar el string base64
-        const base64Data = pdfBase64.split(',')[1];
-        
-        // 5. Definir nombre del archivo único
-        const fileName = `Reporte_${Date.now()}.pdf`;
-
-        // 6. Guardar el archivo en el dispositivo
-        const savedFile = await Filesystem.writeFile({
-            path: fileName,
-            data: base64Data,
-            directory: Directory.Documents, 
-            // Si en tu Android falla con Documents, cambia a Directory.Cache
-        });
-
-        // 7. Abrir el archivo con el visor nativo
-        await FileOpener.open({
-            filePath: savedFile.uri,
-            contentType: 'application/pdf',
-        });
-
     } catch (error) {
-        console.error("Error al generar PDF:", error);
-        alert("Error al generar o abrir el documento. Verifica los permisos de almacenamiento.");
+        console.error("Error PDF:", error);
+        alert("Error al generar el documento.");
     } finally {
         setIsGenerating(false);
     }
   };
 
-  // --- RESTO DE FUNCIONES (Sin cambios) ---
+  // --- LÓGICA DE OPERADORES ---
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
       if (/^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s]*$/.test(value)) setNewOpName(value);
@@ -285,12 +256,18 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
       if (!newOpName.trim()) errors.name = "El nombre es requerido.";
       if (!newOpEmail.trim()) { errors.email = "El email es requerido."; } else if (!emailRegex.test(newOpEmail)) { errors.email = "Formato inválido."; }
       if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
+      
       const newOp = { id: Date.now(), name: newOpName, email: newOpEmail, role: 'Operador', status: 'active', rejections: 0, approvals: 0 };
-      setOperators([...operators, newOp as any]);
+      // @ts-ignore
+      setOperators([...operators, newOp]);
       setShowAddModal(false); setNewOpName(''); setNewOpEmail(''); setFormErrors({});
   };
-  const handleToggleStatus = (id: number) => { setOperators(prev => prev.map(op => op.id === id ? { ...op, status: op.status === 'active' ? 'inactive' : 'active' } : op)); };
+  const handleToggleStatus = (id: number) => { 
+      // @ts-ignore
+      setOperators(prev => prev.map(op => op.id === id ? { ...op, status: op.status === 'active' ? 'inactive' : 'active' } : op)); 
+  };
   const handleDeleteOperator = (id: number) => { if(window.confirm('¿Estás seguro de eliminar este operador?')) setOperators(prev => prev.filter(op => op.id !== id)); };
+  
   const handleQuickDate = (type: 'month' | 'quarter' | 'year') => {
       const end = new Date(); const start = new Date();
       if (type === 'month') { start.setDate(1); setFilterLabel('Mes Actual'); } 
@@ -329,6 +306,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
       <main className="flex-1 overflow-y-auto p-6 space-y-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
         {activeTab === 'overview' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                {/* KPIs y Filtros... */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                         <p className="text-xs font-bold text-gray-400 uppercase mb-1">Trámites {filterLabel === 'Periodo Personalizado' ? 'en periodo' : filterLabel}</p>
@@ -353,7 +331,6 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
                             </div>
                         </div>
                         <div className="flex gap-2 items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-xl border border-gray-200 dark:border-gray-700">
-                             {/* ... Inputs de fecha (igual que antes) ... */}
                              <div className="flex-1 relative"><span className="absolute left-2 top-2 text-[8px] font-bold text-gray-400 uppercase">Desde</span><input type="date" value={dateRange.start} onChange={(e) => { setDateRange({...dateRange, start: e.target.value}); setFilterLabel('Periodo Personalizado'); }} className="w-full bg-transparent pt-4 pb-1 px-2 text-xs font-bold outline-none dark:text-white" /></div>
                              <div className="text-gray-300">-</div>
                              <div className="flex-1 relative"><span className="absolute left-2 top-2 text-[8px] font-bold text-gray-400 uppercase">Hasta</span><input type="date" value={dateRange.end} onChange={(e) => { setDateRange({...dateRange, end: e.target.value}); setFilterLabel('Periodo Personalizado'); }} className="w-full bg-transparent pt-4 pb-1 px-2 text-xs font-bold outline-none dark:text-white" /></div>
@@ -382,30 +359,101 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
                 </div>
             </div>
         )}
-        {/* ... (Vista Operators igual) ... */}
+
+        {/* --- VISTA GESTIÓN DE OPERADORES --- */}
         {activeTab === 'operators' && (
-             <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                  <div className="flex justify-between items-center">
                     <h3 className="font-bold text-gray-800 dark:text-white">Equipo Registrado</h3>
-                    <button onClick={() => setShowAddModal(true)} className="text-xs font-bold bg-indigo-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-indigo-700 flex items-center gap-1"><span className="material-symbols-outlined text-sm">add</span> Nuevo</button>
+                    <button onClick={() => setShowAddModal(true)} className="text-xs font-bold bg-indigo-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-indigo-700 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">add</span> Nuevo
+                    </button>
                 </div>
-                 {/* ... Filtros y Lista Operadores (sin cambios) ... */}
-                 {/* Reutiliza tu código anterior aquí para operadores, no ha cambiado */}
-                 <div className="text-center py-10 opacity-50"><p>Panel de Operadores (Aquí iría tu lista)</p></div>
-             </div>
+                {/* FILTROS OPERADORES */}
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-3">
+                    <div className="relative">
+                        <input type="text" value={searchOp} onChange={(e) => setSearchOp(e.target.value)} placeholder="Buscar por Nombre o Correo..." className="w-full h-11 pl-10 pr-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:border-indigo-500 transition-colors" />
+                        <span className="material-symbols-outlined absolute left-3 top-2.5 text-gray-400">search</span>
+                    </div>
+                    <div className="flex gap-2">
+                         <button onClick={() => setFilterOpStatus('all')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${filterOpStatus === 'all' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-transparent border-gray-200 text-gray-500'}`}>Todos</button>
+                         <button onClick={() => setFilterOpStatus('active')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${filterOpStatus === 'active' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-transparent border-gray-200 text-gray-500'}`}>Activos</button>
+                         <button onClick={() => setFilterOpStatus('inactive')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${filterOpStatus === 'inactive' ? 'bg-gray-100 border-gray-300 text-gray-600' : 'bg-transparent border-gray-200 text-gray-500'}`}>Inactivos</button>
+                    </div>
+                </div>
+                {/* LISTA OPERADORES */}
+                {filteredOperators.length > 0 ? (
+                    filteredOperators.map(op => (
+                        <div key={op.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
+                            <div className="flex items-start gap-4 relative z-10">
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg text-white shadow-md ${op.status === 'active' ? 'bg-gradient-to-br from-indigo-400 to-purple-500' : 'bg-gray-400 grayscale'}`}>
+                                    {op.name.charAt(0)}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex justify-between">
+                                        <h4 className="font-bold text-gray-900 dark:text-white">{op.name}</h4>
+                                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${op.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                            {op.status === 'active' ? 'Activo' : 'Inactivo'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500">{op.email}</p>
+                                    <div className="flex gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                        <div className="text-center"><p className="text-[10px] text-gray-400 font-bold uppercase">Aprobados</p><p className="text-sm font-black text-gray-700 dark:text-white">{op.approvals}</p></div>
+                                        <div className="text-center"><p className="text-[10px] text-gray-400 font-bold uppercase">Rechazos</p><p className="text-sm font-black text-red-500">{op.rejections}</p></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-4 flex gap-2 justify-end">
+                                <button onClick={() => handleToggleStatus(op.id)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200">
+                                    {op.status === 'active' ? 'Desactivar' : 'Activar'}
+                                </button>
+                                <button onClick={() => handleDeleteOperator(op.id)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-50 text-red-600 hover:bg-red-100">Baja</button>
+                            </div>
+                        </div>
+                    ))
+                ) : (
+                    <div className="text-center py-10 opacity-50">
+                        <span className="material-symbols-outlined text-4xl mb-2">person_search</span>
+                        <p>No se encontraron operadores.</p>
+                    </div>
+                )}
+            </div>
         )}
       </main>
 
-      {/* --- MODAL DETALLE MUNICIPIO --- */}
+      {/* --- MODAL DETALLE MUNICIPIO (CENTRADO) --- */}
       {selectedMuni && currentMuniStats && (
-          <div className="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in">
-              <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl shadow-2xl p-6 animate-in slide-in-from-bottom-10 space-y-6 max-h-[85vh] overflow-y-auto">
-                   {/* ... Cabecera y Gráficas (sin cambios) ... */}
-                   <div className="flex justify-between items-start">
-                      <div><p className="text-xs font-bold text-gray-400 uppercase">Detalle Municipal</p><h2 className="text-2xl font-black text-gray-900 dark:text-white">{selectedMuni}</h2></div>
+          <div className="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 space-y-6 max-h-[85vh] overflow-y-auto">
+                  <div className="flex justify-between items-start">
+                      <div>
+                          <p className="text-xs font-bold text-gray-400 uppercase">Detalle Municipal</p>
+                          <h2 className="text-2xl font-black text-gray-900 dark:text-white">{selectedMuni}</h2>
+                          <div className="flex items-center gap-1 mt-1"><span className="material-symbols-outlined text-xs text-indigo-500">calendar_month</span><p className="text-xs text-indigo-500 font-bold">{filterLabel} ({getRangeText()})</p></div>
+                      </div>
                       <button onClick={() => setSelectedMuni(null)} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200"><span className="material-symbols-outlined text-sm">close</span></button>
                   </div>
-                   {/* Botón Ver PDF */}
+                  {/* Gráficas... */}
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-700">
+                      <h4 className="font-bold text-sm text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-indigo-500">pie_chart</span> Parque Vehicular</h4>
+                      <div className="flex items-center justify-around">
+                          <div className="relative w-28 h-28 rounded-full shadow-lg" style={{ background: `conic-gradient(#4F46E5 0% ${currentMuniStats.auto.pct}%, #ec4899 ${currentMuniStats.auto.pct}% 100%)` }}>
+                               <div className="absolute inset-3 bg-gray-50 dark:bg-gray-900 rounded-full flex items-center justify-center flex-col"><span className="text-xs text-gray-400">Total</span><span className="text-xl font-black text-gray-800 dark:text-white">{currentMuniStats.total}</span></div>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-indigo-600"></div><span className="text-gray-500">Autos ({currentMuniStats.auto.pct}%)</span></div>
+                              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-pink-500"></div><span className="text-gray-500">Motos ({currentMuniStats.moto.pct}%)</span></div>
+                          </div>
+                      </div>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-700">
+                      <h4 className="font-bold text-sm text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-orange-500">bar_chart</span> Tipos de Trámite</h4>
+                      <div className="space-y-4">
+                          <div><div className="flex justify-between text-xs mb-1 font-medium"><span>Refrendo</span><span>{currentMuniStats.types.refrendo}</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-green-500 h-2 rounded-full" style={{ width: '60%' }}></div></div></div>
+                          <div><div className="flex justify-between text-xs mb-1 font-medium"><span>Primera Vez</span><span>{currentMuniStats.types.primera}</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full" style={{ width: '30%' }}></div></div></div>
+                          <div><div className="flex justify-between text-xs mb-1 font-medium"><span>Reposición</span><span>{currentMuniStats.types.reposicion}</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-orange-400 h-2 rounded-full" style={{ width: '10%' }}></div></div></div>
+                      </div>
+                  </div>
                   <button onClick={handlePreviewMuniPDF} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 flex items-center justify-center gap-2">
                     <span className="material-symbols-outlined">visibility</span> Ver Reporte PDF
                   </button>
@@ -413,19 +461,34 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
           </div>
       )}
 
-      {/* --- MODAL AGREGAR OPERADOR (Igual) --- */}
+      {/* --- MODAL AGREGAR OPERADOR (CENTRADO) --- */}
       {showAddModal && (
-         <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in">
-            {/* ... Formulario Nuevo Operador ... */}
-             <div className="bg-white p-6 rounded-3xl w-full max-w-sm"><button onClick={() => setShowAddModal(false)}>Cerrar</button></div>
-         </div>
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+             <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 space-y-4">
+                 <h2 className="text-lg font-black text-gray-900 dark:text-white">Dar de Alta Operador</h2>
+                 <div className="space-y-1">
+                     <label className="text-xs font-bold text-gray-400 uppercase">Nombre Completo</label>
+                     <input value={newOpName} onChange={handleNameChange} className={`w-full h-12 border rounded-xl px-4 bg-gray-50 dark:bg-gray-900 dark:text-white outline-none focus:border-indigo-500 ${formErrors.name ? 'border-red-400 bg-red-50' : 'dark:border-gray-700'}`} placeholder="Ej. Luis Miguel" />
+                     {formErrors.name && <p className="text-[10px] text-red-500 font-bold">{formErrors.name}</p>}
+                 </div>
+                 <div className="space-y-1">
+                     <label className="text-xs font-bold text-gray-400 uppercase">Email Institucional</label>
+                     <input value={newOpEmail} onChange={handleEmailChange} className={`w-full h-12 border rounded-xl px-4 bg-gray-50 dark:bg-gray-900 dark:text-white outline-none focus:border-indigo-500 ${formErrors.email ? 'border-red-400 bg-red-50' : 'dark:border-gray-700'}`} placeholder="@durango.gob.mx" />
+                     {formErrors.email && <p className="text-[10px] text-red-500 font-bold">{formErrors.email}</p>}
+                 </div>
+                 <div className="flex gap-3 pt-2">
+                     <button onClick={() => { setShowAddModal(false); setFormErrors({}); }} className="flex-1 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-xl">Cancelar</button>
+                     <button onClick={handleAddOperator} className="flex-1 py-3 font-bold bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700">Guardar</button>
+                 </div>
+             </div>
+        </div>
       )}
 
       {/* --- NUEVO MODAL: PREVIEW PDF --- */}
       {pdfPreview && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-white w-full max-w-2xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
-                  {/* Loading Overlay cuando descarga */}
+                  {/* Loading Overlay */}
                   {isGenerating && (
                       <div className="absolute inset-0 z-50 bg-white/80 flex flex-col items-center justify-center backdrop-blur-sm">
                           <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent mb-4"></div>
@@ -443,8 +506,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onLogout })
                   
                   {/* Contenido HTML (Preview Scrollable) */}
                   <div className="flex-1 overflow-auto p-4 bg-gray-200">
-                      {/* min-w-[700px] fuerza scroll horizontal en móviles si la tabla es ancha */}
-                      <div className="bg-white shadow-xl min-h-full p-8 mx-auto max-w-[21cm] min-w-[700px]" dangerouslySetInnerHTML={{ __html: pdfPreview.html }}></div>
+                      <div className="bg-white shadow-xl min-h-full p-4 mx-auto w-full md:w-[21cm]" dangerouslySetInnerHTML={{ __html: pdfPreview.html }}></div>
                   </div>
 
                   {/* Pie con Botón de Descarga Real */}

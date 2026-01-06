@@ -6,23 +6,21 @@ interface OperatorDashboardScreenProps {
 }
 
 // --- CONFIGURACIÓN DE RUTAS LOCALES (MOCK) ---
-// Agregamos las nuevas rutas para Acta y Certificado
 const DOC_PATHS: Record<string, string> = {
     ineFront: '/Photos/INEF.png',      
     ineBack: '/Photos/INET.png',      
     addressProof: '/Photos/Domicilio.png', 
     photo: '/Photos/cara.jpeg',
-    birthCertificate: '/Photos/Acta.png',          // <--- NUEVO
-    disabilityProof: '/Photos/CertificadoMedico.png' // <--- NUEVO (Solo si aplica)
+    birthCertificate: '/Photos/Acta.png',
+    disabilityProof: '/Photos/CertificadoMedico.png'
 };
 
 const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLogout }) => {
   
   // --- MOCK DATA ACTUALIZADO ---
-  // Agregamos 'hasDisability' para simular casos
   const [requests, setRequests] = useState<(LicenseRequest & { userName: string, hasDisability?: boolean })[]>([
       { id: '101', userName: 'JUAN PÉREZ GARCÍA', type: 'Automovilista', process: 'Primera Vez', cost: 912, date: '2025-12-29', status: 'paid_pending_docs', folio: 'DGO-9988', rejectedDocuments: [], hasDisability: false },
-      { id: '102', userName: 'MARÍA LÓPEZ', type: 'Motociclista', process: 'Primera Vez', cost: 608, date: '2025-12-29', status: 'paid_pending_docs', folio: 'DGO-7744', rejectedDocuments: [], hasDisability: true }, // <--- TIENE DISCAPACIDAD
+      { id: '102', userName: 'MARÍA LÓPEZ', type: 'Motociclista', process: 'Primera Vez', cost: 608, date: '2025-12-29', status: 'paid_pending_docs', folio: 'DGO-7744', rejectedDocuments: [], hasDisability: true }, 
       { id: '103', userName: 'PEDRO SÁNCHEZ', type: 'Automovilista', process: 'Renovación', cost: 912, date: '2025-12-28', status: 'rejected', folio: 'DGO-1122', rejectedDocuments: ['photo'], hasDisability: false },
       { id: '104', userName: 'ANA SOTO', type: 'Chofer', process: 'Renovación', cost: 912, date: '2025-12-20', status: 'completed', folio: 'DGO-3321', rejectedDocuments: [], hasDisability: false }
   ]);
@@ -31,7 +29,6 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Nota: El tipo ahora incluye hasDisability opcional
   const [selectedReq, setSelectedReq] = useState<(LicenseRequest & { userName: string, hasDisability?: boolean }) | null>(null);
   
   // Estados Validación
@@ -45,17 +42,15 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
   const [filterLabel, setFilterLabel] = useState('Hoy');
 
   // --- HELPER: GENERADOR DINÁMICO DE DOCUMENTOS ---
-  // Esta función decide qué documentos pedir basándose en la solicitud
   const getRequiredDocs = (req: { hasDisability?: boolean }) => {
       const docs = [
           { key: 'ineFront', label: 'INE (Lado Frontal)' },
           { key: 'ineBack', label: 'INE (Lado Trasero)' },
           { key: 'addressProof', label: 'Comprobante de Domicilio' },
-          { key: 'birthCertificate', label: 'Acta de Nacimiento' }, // <--- SIEMPRE VISIBLE
+          { key: 'birthCertificate', label: 'Acta de Nacimiento' },
           { key: 'photo', label: 'Fotografía Biométrica' }
       ];
 
-      // Solo agregamos este si el usuario marcó el check en la app
       if (req.hasDisability) {
           docs.push({ key: 'disabilityProof', label: 'Certificado de Discapacidad' });
       }
@@ -106,7 +101,6 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
       const initialStatus: any = {};
       const initialReasons: any = {};
       
-      // Obtenemos los documentos específicos para ESTA solicitud
       const docsToReview = getRequiredDocs(req);
       
       docsToReview.forEach(doc => { 
@@ -135,7 +129,6 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
   const handleSubmitReview = () => {
       if (!selectedReq) return;
 
-      // Obtenemos la lista correcta para validar
       const currentDocs = getRequiredDocs(selectedReq);
 
       const pendingDocs = currentDocs.filter(d => docStatus[d.key] === null);
@@ -187,7 +180,7 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
       </div>
 
       {/* BODY */}
-      <main className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900">
+      <main className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900 safe-bottom">
         
         {/* BUSCADOR */}
         <div className="mb-4 relative">
@@ -207,19 +200,26 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
                 ) : (
                     filteredRequests.map(req => (
                         <div key={req.id} className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border-l-4 border-yellow-400 flex justify-between items-center hover:shadow-md transition-shadow">
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                     <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Pendiente</span>
-                                     <span className="text-xs text-gray-400 font-mono">{req.folio}</span>
-                                     {req.hasDisability && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase flex items-center gap-1"><span className="material-symbols-outlined text-[10px]">accessible</span> Discapacidad</span>}
+                            
+                            {/* --- COLUMNA IZQUIERDA (INFO) AJUSTADA --- */}
+                            {/* flex-1: Ocupa todo el espacio posible. min-w-0: Permite encogerse. pr-3: Margen para no pegar con el botón */}
+                            <div className="flex-1 min-w-0 pr-3">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                     <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0">Pendiente</span>
+                                     <span className="text-xs text-gray-400 font-mono shrink-0">{req.folio}</span>
+                                     {req.hasDisability && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase flex items-center gap-1 shrink-0"><span className="material-symbols-outlined text-[10px]">accessible</span> Discapacidad</span>}
                                 </div>
-                                <h4 className="font-bold text-gray-900 dark:text-white text-base">{req.userName}</h4>
-                                <div className="flex items-center gap-2 mt-1">
+                                {/* truncate: Corta el nombre con ... si es muy largo */}
+                                <h4 className="font-bold text-gray-900 dark:text-white text-base truncate">{req.userName}</h4>
+                                <div className="flex flex-wrap items-center gap-2 mt-1">
                                     <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{req.type}</span>
                                     <span className="text-xs text-gray-500">{req.process}</span>
                                 </div>
                             </div>
-                            <button onClick={() => handleOpenReview(req)} className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors flex items-center gap-2">
+
+                            {/* --- BOTÓN DERECHA AJUSTADO --- */}
+                            {/* shrink-0: Nunca se hace más pequeño, mantiene su tamaño completo */}
+                            <button onClick={() => handleOpenReview(req)} className="shrink-0 bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors flex items-center gap-2">
                                 <span className="material-symbols-outlined text-sm">rate_review</span> Validar
                             </button>
                         </div>
@@ -231,13 +231,11 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
         {/* LISTA HISTORIAL */}
         {activeTab === 'history' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                {/* (Aquí va el mismo bloque de filtros que ya tenías, lo omito para ahorrar espacio pero está incluido en la lógica) */}
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 space-y-3">
                     <div className="flex justify-between items-center">
                         <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><span className="material-symbols-outlined text-sm">filter_alt</span> Filtrar Periodo</h3>
                         <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">{filterLabel}</span>
                     </div>
-                    {/* ...Inputs de fecha... (Mismo código anterior) */}
                     <div className="flex gap-2 items-center">
                         <input type="date" value={dateRange.start} max={dateRange.end} onChange={(e) => { if(e.target.value <= dateRange.end) { setDateRange({...dateRange, start: e.target.value}); setFilterLabel('Personalizado'); }}} className="w-full bg-gray-50 h-10 pt-3 px-2 text-xs rounded border outline-none font-bold" />
                         <span className="text-gray-300">-</span>
@@ -259,7 +257,7 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
                     <div className="space-y-3">
                         {filteredRequests.map(req => (
                             <div key={req.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                                <div className="flex items-center gap-3 overflow-hidden">
+                                <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0 pr-2">
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${req.status === 'completed' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
                                         <span className="material-symbols-outlined text-xl">{req.status === 'completed' ? 'check' : 'block'}</span>
                                     </div>

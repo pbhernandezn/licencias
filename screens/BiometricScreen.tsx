@@ -9,7 +9,7 @@ import Webcam from 'react-webcam';
 const sendLivenessVideo = async (videoBlob: Blob) => {
     try {
         console.log("1. Preparando envío de video...");
-        
+      
         // 🚨 IMPORTANTE: Aquí debes apuntar a TU BACKEND, no directo a Azure
         // Azure Liveness requiere un token de sesión que solo tu backend puede generar.
         const BACKEND_URL = "https://dgofacerecognition.cognitiveservices.azure.com/face/v1.0/liveness/detect"//"https://tu-backend-real.com/api/biometrics/liveness"; 

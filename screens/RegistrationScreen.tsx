@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import bcrypt from 'bcryptjs'; // <--- Importante para el requerimiento de encriptar en front
 import { UserData } from '../types';
 import { fetchCurpData } from '../src/utils/curpHelpers';
 
@@ -9,6 +10,7 @@ interface RegistrationScreenProps {
 }
 
 const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBack, onContinue }) => {
+  // Estado del formulario
   const [form, setForm] = useState({
     email: userData.email || '',
     password: '',
@@ -19,13 +21,13 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
     birthDate: userData.birthDate || '',
   });
 
+  // Estados de control visual
   const [loadingCurp, setLoadingCurp] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // <--- Para bloquear botón mientras guarda
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  
-  // Control para evitar recargas innecesarias de la misma CURP
   const [lastFetchedCurp, setLastFetchedCurp] = useState('');
 
-  // Referencias para el Auto-Focus y Scroll
+  // Referencias para scroll automático a errores
   const inputRefs = {
     email: useRef<HTMLInputElement>(null),
     password: useRef<HTMLInputElement>(null),
@@ -39,12 +41,11 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
   const CURP_REGEX = /^[A-Z]{4}\d{6}[HMX][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[A-Z0-9]\d$/;
   const NAME_REGEX = /^[A-ZÑ\s]*$/;
 
-  // --- HANDLERS ---
+  // --- HANDLERS DE INPUTS ---
   const handleNameInput = (field: 'firstName' | 'paternalName' | 'maternalName', value: string) => {
     const upperValue = value.toUpperCase();
     if (NAME_REGEX.test(upperValue)) {
       setForm(prev => ({ ...prev, [field]: upperValue }));
-      // Borramos el error en tiempo real si el usuario escribe
       if (errors[field]) setErrors(prev => {
           const newErr = { ...prev };
           delete newErr[field];
@@ -67,85 +68,53 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
     }
   };
 
-  // --- VALIDACIÓN CORREGIDA (Sin "else if") ---
+  // --- VALIDACIÓN ---
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
     
-    // 1. Validar Email
-    if (!form.email || !form.email.includes('@')) {
-        newErrors.email = 'Correo inválido';
-    }
+    if (!form.email || !form.email.includes('@')) newErrors.email = 'Correo inválido';
+    if (!form.password || form.password.length < 4) newErrors.password = 'Mínimo 4 caracteres';
     
-    // 2. Validar Password
-    if (!form.password || form.password.length < 4) {
-        newErrors.password = 'Mínimo 4 caracteres';
-    }
-    
-    // 3. Validar CURP
     if (!form.idNumber) {
         newErrors.idNumber = 'La CURP es requerida';
     } else if (form.idNumber.length !== 18) {
         newErrors.idNumber = 'Debe tener 18 caracteres exactos';
     } else if (!CURP_REGEX.test(form.idNumber)) {
-       // Mensajes específicos para ayudar al usuario
-       if (!/^[A-Z]{4}/.test(form.idNumber)) newErrors.idNumber = 'Las primeras 4 posiciones deben ser LETRAS.';
-       else if (!/\d{6}/.test(form.idNumber.substring(4, 10))) newErrors.idNumber = 'Fecha en CURP inválida.';
-       else newErrors.idNumber = 'Formato inválido.';
+       newErrors.idNumber = 'Formato de CURP inválido.';
     }
 
-    // 4. Validar Nombres (CORREGIDO: Usamos IF independientes para que marque TODOS)
-    if (!form.firstName.trim()) {
-        newErrors.firstName = 'Nombre requerido';
-    }
-    
-    if (!form.paternalName.trim()) {
-        newErrors.paternalName = 'Apellido P. requerido';
-    }
-    
-    if (!form.maternalName.trim()) {
-        newErrors.maternalName = 'Apellido M. requerido';
-    }
-    
-    if (!form.birthDate) {
-        newErrors.birthDate = 'Fecha requerida';
-    }
+    if (!form.firstName.trim()) newErrors.firstName = 'Nombre requerido';
+    if (!form.paternalName.trim()) newErrors.paternalName = 'Apellido P. requerido';
+    if (!form.maternalName.trim()) newErrors.maternalName = 'Apellido M. requerido';
+    if (!form.birthDate) newErrors.birthDate = 'Fecha requerida';
 
     setErrors(newErrors);
 
-    // --- LÓGICA DE SCROLL AL PRIMER ERROR ---
-    // Busca cuál fue el primer campo que falló según el orden de validación
+    // Scroll al primer error
     const errorKeys = Object.keys(newErrors);
     if (errorKeys.length > 0) {
-        // Orden de prioridad para el scroll (de arriba a abajo en la pantalla)
         const fieldOrder = ['email', 'password', 'idNumber', 'firstName', 'paternalName', 'maternalName', 'birthDate'];
         const firstErrorField = fieldOrder.find(field => errorKeys.includes(field));
-
         if (firstErrorField) {
             const ref = inputRefs[firstErrorField as keyof typeof inputRefs];
-            if (ref && ref.current) {
-                ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                ref.current.focus();
-            }
+            ref?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            ref?.current?.focus();
         }
         return false;
     }
-
     return true;
   };
 
   const handleCurpBlur = async () => {
-    // CORRECCIÓN BUG: Solo consulta si la CURP es válida y DIFERENTE a la última consultada
     if (CURP_REGEX.test(form.idNumber) && form.idNumber !== lastFetchedCurp) {
       setLoadingCurp(true);
       const result = await fetchCurpData(form.idNumber);
       setLoadingCurp(false);
 
       if (result.success && result.data) {
-        setLastFetchedCurp(form.idNumber); // Actualizamos la última consultada
-        
+        setLastFetchedCurp(form.idNumber);
         setForm(prev => ({
           ...prev,
-          // CORRECCIÓN: Si la API no trae nombre (null/undefined), NO borres lo que el usuario ya escribió
           firstName: result.data.firstName || prev.firstName, 
           paternalName: result.data.paternalName || prev.paternalName,
           maternalName: result.data.maternalName || prev.maternalName,
@@ -153,6 +122,70 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
         }));
         setErrors({});
       }
+    }
+  };
+
+  // =========================================================
+  //  LOGICA PRINCIPAL: ENCRIPTAR -> CONECTAR -> AVANZAR
+  // =========================================================
+  const handleContinue = async () => {
+    // 1. Si la validación falla, se detiene aquí. No conecta, no avanza.
+    if (!validate()) return;
+
+    setIsSubmitting(true); // Bloqueamos el botón para evitar doble clic
+
+    try {
+        // 2. Encriptamos Password (Requerimiento Cliente)
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(form.password, salt);
+
+        // 3. Preparamos el Payload
+        // IMPORTANTE: Aquí traducimos tus variables de React a las que pide el Backend (Postgres)
+        const payload = {
+            tipoUsuario: 3,                 // Dato fijo requerido
+            nombres: form.firstName,
+            apellidopaterno: form.paternalName, // Mapeo correcto
+            apellidomaterno: form.maternalName, // Mapeo correcto
+            curp: form.idNumber,
+            email: form.email,
+            password: hashedPassword,       // Enviamos la encriptada
+            fechanacimiento: form.birthDate // Mapeo correcto
+        };
+
+        // 4. Enviamos a la Base de Datos (Esperamos respuesta)
+        console.log("Enviando datos al backend...", payload);
+        
+        const response = await fetch('http://localhost:3001/api/usuarios/createUsuario', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        // 5. Verificamos si se guardó correctamente
+        if (!response.ok) {
+            // Si el backend dice error (ej. Usuario ya existe), lanzamos error
+            // Esto salta directo al bloque 'catch' y NO ejecuta el onContinue
+            throw new Error(data.message || 'Error desconocido al guardar en BD');
+        }
+
+        // 6. ÉXITO: Si llegamos aquí, ya está en Postgres.
+        console.log("✅ Usuario registrado con ID:", data.id_usuario);
+        
+        // Ahora sí, avanzamos de pantalla
+        onContinue({ 
+            ...form, 
+            password: hashedPassword, // Guardamos el estado actualizado
+            lastName: `${form.paternalName} ${form.maternalName}` 
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error en registro:", error);
+        // Mostramos alerta al usuario para que sepa por qué no avanza
+        alert(`No se pudo registrar: ${error.message}`);
+    } finally {
+        setIsSubmitting(false); // Desbloqueamos el botón pase lo que pase
     }
   };
 
@@ -178,6 +211,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
         </div>
 
         <div className="space-y-6">
+            {/* SECCIÓN CREDENCIALES */}
             <section className="space-y-4">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2">Credenciales</h3>
                 
@@ -208,6 +242,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
                 </div>
             </section>
 
+            {/* SECCIÓN DATOS PERSONALES */}
             <section className="space-y-4">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2">Datos Personales</h3>
                 
@@ -287,8 +322,16 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
 
       {/* FOOTER */}
       <div className="p-6 absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light dark:via-background-dark to-transparent pt-10 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] z-20">
-        <button onClick={() => { if (validate()) onContinue({ ...form, lastName: `${form.paternalName} ${form.maternalName}` }); }} className="w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-lg shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
-          Continuar <span className="material-symbols-outlined">arrow_forward</span>
+        <button 
+            onClick={handleContinue} 
+            disabled={isSubmitting} // Se deshabilita durante el envío
+            className={`w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-lg shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}
+        >
+          {isSubmitting ? (
+             <span>Procesando...</span>
+          ) : (
+             <>Continuar <span className="material-symbols-outlined">arrow_forward</span></>
+          )}
         </button>
       </div>
     </div>

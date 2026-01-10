@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import bcrypt from 'bcryptjs'; // <--- Importante para el requerimiento de encriptar en front
+import bcrypt from 'bcryptjs'; 
 import { UserData } from '../types';
 import { fetchCurpData } from '../src/utils/curpHelpers';
 
@@ -23,9 +23,13 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
 
   // Estados de control visual
   const [loadingCurp, setLoadingCurp] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false); // <--- Para bloquear botón mientras guarda
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [lastFetchedCurp, setLastFetchedCurp] = useState('');
+
+  // --- ESTADOS PARA EL MODAL DE ERROR (POP UP) ---
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Referencias para scroll automático a errores
   const inputRefs = {
@@ -68,7 +72,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
     }
   };
 
-  // --- VALIDACIÓN ---
+  // --- VALIDACIÓN FRONTEND ---
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
     
@@ -90,13 +94,12 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
 
     setErrors(newErrors);
 
-    // Scroll al primer error
-    const errorKeys = Object.keys(newErrors);
-    if (errorKeys.length > 0) {
+    if (Object.keys(newErrors).length > 0) {
         const fieldOrder = ['email', 'password', 'idNumber', 'firstName', 'paternalName', 'maternalName', 'birthDate'];
-        const firstErrorField = fieldOrder.find(field => errorKeys.includes(field));
+        const firstErrorField = fieldOrder.find(field => Object.keys(newErrors).includes(field));
         if (firstErrorField) {
-            const ref = inputRefs[firstErrorField as keyof typeof inputRefs];
+            // @ts-ignore
+            const ref = inputRefs[firstErrorField];
             ref?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             ref?.current?.focus();
         }
@@ -126,34 +129,31 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
   };
 
   // =========================================================
-  //  LOGICA PRINCIPAL: ENCRIPTAR -> CONECTAR -> AVANZAR
+  //  LOGICA PRINCIPAL
   // =========================================================
   const handleContinue = async () => {
-    // 1. Si la validación falla, se detiene aquí. No conecta, no avanza.
     if (!validate()) return;
 
-    setIsSubmitting(true); // Bloqueamos el botón para evitar doble clic
+    setIsSubmitting(true);
+    setErrors({});
 
     try {
-        // 2. Encriptamos Password (Requerimiento Cliente)
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(form.password, salt);
+        const fullHash = await bcrypt.hash(form.password, salt);
+        const cutPassword = fullHash.substring(7);
 
-        // 3. Preparamos el Payload
-        // IMPORTANTE: Aquí traducimos tus variables de React a las que pide el Backend (Postgres)
         const payload = {
-            tipoUsuario: 3,                 // Dato fijo requerido
+            tipoUsuario: 3,                 
             nombres: form.firstName,
-            apellidopaterno: form.paternalName, // Mapeo correcto
-            apellidomaterno: form.maternalName, // Mapeo correcto
+            apellidopaterno: form.paternalName,
+            apellidomaterno: form.maternalName,
             curp: form.idNumber,
             email: form.email,
-            password: hashedPassword,       // Enviamos la encriptada
-            fechanacimiento: form.birthDate // Mapeo correcto
+            password: cutPassword,
+            fechanacimiento: form.birthDate 
         };
 
-        // 4. Enviamos a la Base de Datos (Esperamos respuesta)
-        console.log("Enviando datos al backend...", payload);
+        console.log("Enviando datos...", payload);
         
         const response = await fetch('http://localhost:3001/api/usuarios/createUsuario', {
             method: 'POST',
@@ -163,29 +163,63 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
 
         const data = await response.json();
 
-        // 5. Verificamos si se guardó correctamente
-        if (!response.ok) {
-            // Si el backend dice error (ej. Usuario ya existe), lanzamos error
-            // Esto salta directo al bloque 'catch' y NO ejecuta el onContinue
-            throw new Error(data.message || 'Error desconocido al guardar en BD');
+        // --- MANEJO DE RESPUESTA ---
+        if (!response.ok || (data.code && data.code !== "200")) {
+            
+            // ERROR 550 (Validación)
+            if (data.code === "550" && data.data && data.data.errores) {
+                const backendErrors = data.data.errores;
+
+                // 1. PRIORIDAD: ¿Existe el mensaje "necesarios" (ej. Usuario ya existe)?
+                if (backendErrors.necesarios) {
+                    setErrorMessage(backendErrors.necesarios); // "El usuario ya ha sido dado de alta."
+                    setShowErrorModal(true); // Abrir Modal
+                    setIsSubmitting(false); // Detener loading
+                    return; // Detener flujo aquí, no marcar inputs rojos
+                }
+
+                // 2. Si no es un error general, mapeamos a los inputs rojos
+                const mappedErrors: { [key: string]: string } = {};
+                if (backendErrors.email) mappedErrors.email = backendErrors.email;
+                if (backendErrors.password) mappedErrors.password = backendErrors.password;
+                if (backendErrors.curp) mappedErrors.idNumber = backendErrors.curp;
+                if (backendErrors.nombres) mappedErrors.firstName = backendErrors.nombres;
+                if (backendErrors.apellidopaterno) mappedErrors.paternalName = backendErrors.apellidopaterno;
+                if (backendErrors.apellidomaterno) mappedErrors.maternalName = backendErrors.apellidopaterno;
+                if (backendErrors.fechanacimiento) mappedErrors.birthDate = backendErrors.fechanacimiento;
+
+                setErrors(mappedErrors);
+
+                // Scroll al error
+                const errorKeys = Object.keys(mappedErrors);
+                if (errorKeys.length > 0) {
+                     // @ts-ignore
+                     const firstRef = inputRefs[Object.keys(inputRefs).find(k => mappedErrors[k])];
+                     firstRef?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+
+                // No lanzamos throw Error aquí para que no salga el alert del catch, 
+                // ya que los inputs rojos son suficiente feedback visual.
+                return; 
+            }
+
+            throw new Error(data.message || 'Error desconocido.');
         }
 
-        // 6. ÉXITO: Si llegamos aquí, ya está en Postgres.
-        console.log("✅ Usuario registrado con ID:", data.id_usuario);
-        
-        // Ahora sí, avanzamos de pantalla
+        // ÉXITO
+        console.log("✅ Registrado:", data.id_usuario);
         onContinue({ 
             ...form, 
-            password: hashedPassword, // Guardamos el estado actualizado
+            password: cutPassword, 
             lastName: `${form.paternalName} ${form.maternalName}` 
         });
 
     } catch (error: any) {
-        console.error("❌ Error en registro:", error);
-        // Mostramos alerta al usuario para que sepa por qué no avanza
-        alert(`No se pudo registrar: ${error.message}`);
+        console.error("❌ Error:", error);
+        // Si no es el modal ni errores de inputs, mostramos un fallback
+        alert(`Ocurrió un error inesperado: ${error.message}`);
     } finally {
-        setIsSubmitting(false); // Desbloqueamos el botón pase lo que pase
+        setIsSubmitting(false);
     }
   };
 
@@ -211,92 +245,49 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
         </div>
 
         <div className="space-y-6">
-            {/* SECCIÓN CREDENCIALES */}
+            {/* INPUTS (Se mantienen igual que tu código original...) */}
             <section className="space-y-4">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2">Credenciales</h3>
                 
                 <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Correo Electrónico</label>
-                    <input 
-                        ref={inputRefs.email}
-                        type="email" 
-                        value={form.email} 
-                        onChange={e => setForm({...form, email: e.target.value})} 
-                        placeholder="ejemplo@correo.com" 
-                        className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.email ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} 
-                    />
+                    <input ref={inputRefs.email} type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="ejemplo@correo.com" className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.email ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} />
                     {errors.email && <p className="text-[10px] text-red-500 pl-1 font-bold animate-pulse">{errors.email}</p>}
                 </div>
 
                 <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Contraseña</label>
-                    <input 
-                        ref={inputRefs.password}
-                        type="password" 
-                        value={form.password} 
-                        onChange={e => setForm({...form, password: e.target.value})} 
-                        placeholder="••••••••" 
-                        className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.password ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} 
-                    />
+                    <input ref={inputRefs.password} type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="••••••••" className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.password ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} />
                     {errors.password && <p className="text-[10px] text-red-500 pl-1 font-bold animate-pulse">{errors.password}</p>}
                 </div>
             </section>
 
-            {/* SECCIÓN DATOS PERSONALES */}
             <section className="space-y-4">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2">Datos Personales</h3>
                 
                 <div className="space-y-1.5 relative">
                     <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">CURP</label>
-                    <input 
-                        ref={inputRefs.idNumber}
-                        value={form.idNumber} 
-                        onChange={e => handleCurpInput(e.target.value)} 
-                        onBlur={handleCurpBlur} 
-                        maxLength={18} 
-                        placeholder="ABCD990101H..." 
-                        className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all uppercase font-mono ${errors.idNumber ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} 
-                    />
+                    <input ref={inputRefs.idNumber} value={form.idNumber} onChange={e => handleCurpInput(e.target.value)} onBlur={handleCurpBlur} maxLength={18} placeholder="ABCD990101H..." className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all uppercase font-mono ${errors.idNumber ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} />
                     {loadingCurp && <div className="absolute right-4 top-9 animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent"></div>}
-                    {!errors.idNumber && CURP_REGEX.test(form.idNumber) && !loadingCurp && (
-                        <div className="absolute right-4 top-9 text-green-500"><span className="material-symbols-outlined">check_circle</span></div>
-                    )}
+                    {!errors.idNumber && CURP_REGEX.test(form.idNumber) && !loadingCurp && (<div className="absolute right-4 top-9 text-green-500"><span className="material-symbols-outlined">check_circle</span></div>)}
                     {errors.idNumber && <p className="text-[10px] text-red-500 pl-1 font-bold animate-pulse">{errors.idNumber}</p>}
                 </div>
 
                 <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Nombre(s)</label>
-                    <input 
-                        ref={inputRefs.firstName}
-                        value={form.firstName} 
-                        onChange={e => handleNameInput('firstName', e.target.value)} 
-                        placeholder="Ej. Juan Carlos" 
-                        className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.firstName ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} 
-                    />
+                    <input ref={inputRefs.firstName} value={form.firstName} onChange={e => handleNameInput('firstName', e.target.value)} placeholder="Ej. Juan Carlos" className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.firstName ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} />
                     {errors.firstName && <p className="text-[10px] text-red-500 pl-1 font-bold animate-pulse">{errors.firstName}</p>}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                         <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Apellido Paterno</label>
-                        <input 
-                            ref={inputRefs.paternalName}
-                            value={form.paternalName} 
-                            onChange={e => handleNameInput('paternalName', e.target.value)} 
-                            placeholder="Ej. Pérez" 
-                            className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.paternalName ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} 
-                        />
+                        <input ref={inputRefs.paternalName} value={form.paternalName} onChange={e => handleNameInput('paternalName', e.target.value)} placeholder="Ej. Pérez" className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.paternalName ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} />
                         {errors.paternalName && <p className="text-[10px] text-red-500 pl-1 font-bold animate-pulse">{errors.paternalName}</p>}
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Apellido Materno</label>
-                        <input 
-                            ref={inputRefs.maternalName}
-                            value={form.maternalName} 
-                            onChange={e => handleNameInput('maternalName', e.target.value)} 
-                            placeholder="Ej. García" 
-                            className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.maternalName ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} 
-                        />
+                        <input ref={inputRefs.maternalName} value={form.maternalName} onChange={e => handleNameInput('maternalName', e.target.value)} placeholder="Ej. García" className={`w-full h-14 bg-white dark:bg-gray-800 border-2 rounded-2xl px-4 focus:border-primary outline-none transition-all ${errors.maternalName ? 'border-red-400 bg-red-50' : 'border-gray-100 dark:border-gray-700'}`} />
                         {errors.maternalName && <p className="text-[10px] text-red-500 pl-1 font-bold animate-pulse">{errors.maternalName}</p>}
                     </div>
                 </div>
@@ -304,14 +295,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
                 <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1">Fecha de Nacimiento</label>
                     <div className="relative">
-                        <input 
-                            ref={inputRefs.birthDate}
-                            type="date" 
-                            value={form.birthDate} 
-                            disabled 
-                            readOnly 
-                            className={`w-full h-14 bg-gray-100 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl px-4 outline-none text-gray-500 font-bold cursor-not-allowed ${errors.birthDate ? 'border-red-400' : ''}`} 
-                        />
+                        <input ref={inputRefs.birthDate} type="date" value={form.birthDate} disabled readOnly className={`w-full h-14 bg-gray-100 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl px-4 outline-none text-gray-500 font-bold cursor-not-allowed ${errors.birthDate ? 'border-red-400' : ''}`} />
                         <span className="material-symbols-outlined absolute right-4 top-4 text-gray-400 text-lg">lock</span>
                     </div>
                     {errors.birthDate ? <p className="text-[10px] text-red-500 pl-1 font-bold animate-pulse">{errors.birthDate}</p> : <p className="text-[10px] text-gray-400 pl-1">Se calcula automáticamente de tu CURP</p>}
@@ -322,18 +306,36 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ userData, onBac
 
       {/* FOOTER */}
       <div className="p-6 absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light dark:via-background-dark to-transparent pt-10 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] z-20">
-        <button 
-            onClick={handleContinue} 
-            disabled={isSubmitting} // Se deshabilita durante el envío
-            className={`w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-lg shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}
-        >
-          {isSubmitting ? (
-             <span>Procesando...</span>
-          ) : (
-             <>Continuar <span className="material-symbols-outlined">arrow_forward</span></>
-          )}
+        <button onClick={handleContinue} disabled={isSubmitting} className={`w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-lg shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}>
+          {isSubmitting ? (<span>Procesando...</span>) : (<>Continuar <span className="material-symbols-outlined">arrow_forward</span></>)}
         </button>
       </div>
+
+      {/* --- MODAL ELEGANTE (POP UP) --- */}
+      {showErrorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+           <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-2xl w-full max-w-sm text-center transform transition-all animate-in zoom-in-95 duration-200 border border-gray-100 dark:border-gray-700">
+              
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                  <span className="material-symbols-outlined text-3xl">priority_high</span>
+              </div>
+              
+              <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">Atención</h3>
+              
+              <p className="text-gray-500 dark:text-gray-300 text-sm font-medium mb-6 leading-relaxed">
+                  {errorMessage}
+              </p>
+              
+              <button 
+                onClick={() => setShowErrorModal(false)}
+                className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-black rounded-xl font-bold text-sm hover:scale-[1.02] active:scale-95 transition-transform"
+              >
+                Entendido
+              </button>
+           </div>
+        </div>
+      )}
+
     </div>
   );
 };

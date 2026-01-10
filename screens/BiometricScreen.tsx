@@ -2,29 +2,23 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
 
 // ============================================================================
-// ⬇️⬇️⬇️ LÓGICA DE ENVÍO DE VIDEO (LIVENESS) ⬇️⬇️⬇️
+// LOGICA DE ENVIO DE VIDEO (LIVENESS)
 // ============================================================================
 
-// Esta función ahora envía un VIDEO (Blob) al Backend
 const sendLivenessVideo = async (videoBlob: Blob) => {
     try {
-        console.log("1. Preparando envío de video...");
+        console.log("1. Preparando envio de video...");
       
-        // 🚨 IMPORTANTE: Aquí debes apuntar a TU BACKEND, no directo a Azure
-        // Azure Liveness requiere un token de sesión que solo tu backend puede generar.
-        const BACKEND_URL = "https://dgofacerecognition.cognitiveservices.azure.com/face/v1.0/liveness/detect"//"https://tu-backend-real.com/api/biometrics/liveness"; 
+        // NOTA: Idealmente esto va a tu Backend intermedio, no directo a Azure desde el cliente
+        const BACKEND_URL = "https://dgofacerecognition.cognitiveservices.azure.com/face/v1.0/liveness/detect"; 
         
-        // Preparamos el archivo para envío
         const formData = new FormData();
-        // Agregamos el video. Nota: En web/móvil suele grabarse como 'video/webm'
         formData.append('video', videoBlob, 'liveness_check.webm'); 
 
-        // 🔍 DEBUG: Ver tamaño del video
-        console.log(`Tamaño del video: ${(videoBlob.size / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`Tamano del video: ${(videoBlob.size / 1024 / 1024).toFixed(2)} MB`);
 
         const response = await fetch(BACKEND_URL, {
             method: 'POST',
-            // No ponemos 'Content-Type', el navegador lo pone automático con el boundary correcto para FormData
             body: formData
         });
 
@@ -32,17 +26,13 @@ const sendLivenessVideo = async (videoBlob: Blob) => {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("🔥 Error Backend:", errorText);
+            console.error("Error Backend:", errorText);
             throw new Error(`Error ${response.status}: ${errorText}`);
         }
 
         const data = await response.json();
         
-        // 🟢 DEBUG ÉXITO
-        // alert("✅ LIVENESS OK:\n" + JSON.stringify(data, null, 2));
-
-        // Adaptar esto según lo que responda TU backend
-        // Ejemplo: { isReal: true, confidence: 0.98 }
+        // Adaptar esto segun la respuesta de tu servicio
         if (data.isReal === false) {
              return { success: false, message: "Prueba de vida fallida. Intenta de nuevo." };
         }
@@ -51,14 +41,12 @@ const sendLivenessVideo = async (videoBlob: Blob) => {
 
     } catch (error: any) {
         console.error("Catch Error:", error);
-        // Para pruebas, si no tienes backend, descomenta esto para simular éxito:
-        // return { success: true, message: "Simulación Exitosa" }; 
-        return { success: false, message: error.message || "Error de conexión." };
+        return { success: false, message: error.message || "Error de conexion." };
     }
 };
 
 // ============================================================================
-// ⬆️⬆️⬆️ FIN LÓGICA ⬆️⬆️⬆️
+// COMPONENTE VISUAL
 // ============================================================================
 
 interface BiometricScreenProps {
@@ -78,23 +66,22 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
 
   const videoConstraints = {
     facingMode: "user",
-    width: { ideal: 640 }, // Bajamos un poco resolución para que el video no pese tanto
+    width: { ideal: 640 },
     height: { ideal: 480 }
   };
 
-  // --- Lógica de Grabación ---
+  // --- Logica de Grabacion ---
   
   const startRecording = useCallback(() => {
     setIsScanning(true);
     setScanProgress(0);
     setCameraError(null);
-    chunksRef.current = []; // Limpiar buffer anterior
+    chunksRef.current = [];
 
     const stream = webcamRef.current?.stream;
 
     if (stream) {
         try {
-            // Intentamos usar codecs estándar. Si falla, el navegador usa el default.
             const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
                 ? { mimeType: 'video/webm;codecs=vp9' } 
                 : { mimeType: 'video/webm' };
@@ -108,29 +95,28 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
             };
 
             recorder.onstop = async () => {
-                // Cuando se detiene, unimos los pedazos y enviamos
                 const blob = new Blob(chunksRef.current, { type: 'video/webm' });
                 handleVideoProcess(blob);
             };
 
             mediaRecorderRef.current = recorder;
             recorder.start();
-            console.log("🎥 Grabando...");
+            console.log("Grabando...");
 
         } catch (err: any) {
             console.error("Error iniciando grabadora:", err);
-            setCameraError("No se pudo iniciar la grabación de video.");
+            setCameraError("No se pudo iniciar la grabacion de video.");
             setIsScanning(false);
         }
     } else {
-        setCameraError("Cámara no lista.");
+        setCameraError("Camara no lista.");
     }
   }, [webcamRef]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
         mediaRecorderRef.current.stop();
-        console.log("🛑 Grabación detenida");
+        console.log("Grabacion detenida");
     }
   }, []);
 
@@ -138,13 +124,10 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
       setIsValidating(true);
       setIsScanning(false);
 
-      // Enviamos el video al backend
       const result = await sendLivenessVideo(videoBlob);
 
       if (result.success) {
           setIsValidating(false);
-          // Si el liveness es exitoso, tomamos una foto final como referencia visual
-          // (Opcional, pero útil para mostrar en la app)
           const finalPhoto = webcamRef.current?.getScreenshot() || ""; 
           onComplete(finalPhoto); 
       } else {
@@ -153,23 +136,29 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
       }
   };
 
-  // --- Efecto de Barra de Progreso y Temporizador (3 Segundos) ---
+  // --- BOTON DE OMITIR (PARA PRUEBAS) ---
+  const handleSkip = () => {
+      // Detener cualquier proceso activo
+      if (isScanning) stopRecording();
+      
+      // Simular exito enviando una imagen dummy
+      console.log("Omitiendo prueba de vida...");
+      onComplete("https://via.placeholder.com/400x400?text=Prueba+Omitida");
+  };
+
+  // --- Efecto de Barra de Progreso ---
   useEffect(() => {
     let interval: any;
     
     if (isScanning && !isValidating) {
-      // Queremos llegar a 100% en 3 segundos (3000ms)
-      // Cada paso es de 50ms. 3000 / 50 = 60 pasos.
-      // 100% / 60 pasos = 1.66% por paso.
-      
       interval = setInterval(() => {
         setScanProgress((prev) => {
           if (prev >= 100) {
             clearInterval(interval);
-            stopRecording(); // 🛑 AL LLEGAR A 100, CORTAMOS VIDEO
+            stopRecording();
             return 100;
           }
-          return prev + 1.7; // Ajustado para aprox 3 seg
+          return prev + 1.7; 
         });
       }, 50);
     }
@@ -186,8 +175,8 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
   };
 
   const handleUserMediaError = useCallback((error: string | DOMException) => {
-      console.error("Error de cámara:", error);
-      setCameraError("Acceso denegado o error de cámara.");
+      console.error("Error de camara:", error);
+      setCameraError("Acceso denegado o error de camara.");
   }, []);
 
   return (
@@ -203,16 +192,16 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
         </button>
         <div className="text-right">
             <h2 className="text-white font-bold text-base drop-shadow-md">Prueba de Vida</h2>
-            <p className="text-white/80 text-xs drop-shadow-md">Video Verificación</p>
+            <p className="text-white/80 text-xs drop-shadow-md">Video Verificacion</p>
         </div>
       </div>
 
-      {/* 2. ÁREA DE CÁMARA */}
+      {/* 2. AREA DE CAMARA */}
       <div className="flex-1 relative w-full h-full flex items-center justify-center bg-gray-900">
         
         {!cameraError ? (
             <Webcam
-                audio={false} // No necesitamos audio para liveness
+                audio={false}
                 ref={webcamRef}
                 screenshotFormat="image/jpeg"
                 videoConstraints={videoConstraints}
@@ -228,7 +217,7 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
         ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-10 text-center z-10 bg-gray-900/90 backdrop-blur-sm">
                 <span className="material-symbols-outlined text-6xl text-red-500 mb-4">warning</span>
-                <p className="text-white font-bold text-lg">Error de Cámara</p>
+                <p className="text-white font-bold text-lg">Error de Camara</p>
                 <p className="text-gray-300 text-sm mt-2 max-w-xs">{cameraError}</p>
                 <button 
                     onClick={() => setCameraError(null)} 
@@ -239,7 +228,7 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
             </div>
         )}
 
-        {/* MÁSCARA SVG */}
+        {/* MASCARA SVG */}
         <div className="absolute inset-0 z-10 pointer-events-none">
             <svg className="w-full h-full" preserveAspectRatio="none">
                 <defs>
@@ -252,7 +241,7 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
             </svg>
             
             <div className="absolute inset-0 flex items-center justify-center" style={{ paddingBottom: '10%' }}>
-                {/* Borde cambia a ROJO mientras graba para indicar "REC" */}
+                {/* Borde cambia a ROJO mientras graba */}
                 <div className={`w-[56%] aspect-[3/4] max-h-[44%] rounded-[50%] border-2 border-dashed transition-all duration-500 ${isScanning ? 'border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)]' : 'border-white/40'}`}></div>
             </div>
 
@@ -289,7 +278,6 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
                 disabled={!!cameraError}
                 className={`w-16 h-16 rounded-full border-4 flex items-center justify-center p-1 transition-transform shadow-lg ${cameraError ? 'border-gray-600 opacity-50 cursor-not-allowed' : 'border-white hover:scale-105 active:scale-95 shadow-white/20'}`}
               >
-                  {/* Botón Rojo tipo REC */}
                   <div className={`w-full h-full rounded-full ${cameraError ? 'bg-gray-600' : 'bg-red-600'}`}></div>
               </button>
           ) : (
@@ -302,8 +290,17 @@ const BiometricScreen: React.FC<BiometricScreenProps> = ({ onBack, onComplete })
           )}
           
           <p className="text-gray-400 text-[11px] mt-4 text-center max-w-xs">
-              {isScanning ? "Mantén el rostro en el óvalo" : "Grabaremos un video corto de 3 segundos."}
+              {isScanning ? "Manten el rostro en el ovalo" : "Grabaremos un video corto de 3 segundos."}
           </p>
+
+          {/* BOTON DE OMITIR PARA PRUEBAS */}
+          <button 
+            onClick={handleSkip}
+            className="mt-6 text-[10px] uppercase font-bold text-gray-600 hover:text-white border border-gray-700 hover:border-white px-3 py-1 rounded transition-colors"
+          >
+            Omitir (Modo Pruebas)
+          </button>
+
       </div>
     </div>
   );

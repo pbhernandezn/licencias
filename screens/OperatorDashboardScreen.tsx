@@ -5,7 +5,7 @@ interface OperatorDashboardScreenProps {
   onLogout: () => void;
 }
 
-// --- CONFIGURACIÓN DE RUTAS LOCALES (MOCK) ---
+// --- CONSTANTES Y CONFIGURACIÓN ---
 const DOC_PATHS: Record<string, string> = {
     ineFront: '/Photos/INEF.png',      
     ineBack: '/Photos/INET.png',      
@@ -15,57 +15,76 @@ const DOC_PATHS: Record<string, string> = {
     disabilityProof: '/Photos/CertificadoMedico.png'
 };
 
+// NUEVO: Diccionario para traducir las llaves a texto legible en el historial
+const DOC_LABELS: Record<string, string> = {
+    ineFront: 'INE (Frontal)',
+    ineBack: 'INE (Trasero)',
+    addressProof: 'Comprobante Domicilio',
+    birthCertificate: 'Acta Nacimiento',
+    photo: 'Fotografía',
+    disabilityProof: 'Cert. Discapacidad'
+};
+
+// Tipo extendido
+type ExtendedRequest = LicenseRequest & { 
+    userName: string; 
+    hasDisability?: boolean; 
+    paymentVerified?: boolean; 
+    paymentReason?: string;
+    // NUEVO: Aquí guardaremos los comentarios de rechazo por documento
+    documentReasons?: Record<string, string>; 
+};
+
 const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLogout }) => {
   
-  // --- MOCK DATA ACTUALIZADO ---
-  const [requests, setRequests] = useState<(LicenseRequest & { userName: string, hasDisability?: boolean })[]>([
-      { id: '101', userName: 'JUAN PÉREZ GARCÍA', type: 'Automovilista', process: 'Primera Vez', cost: 912, date: '2025-12-29', status: 'paid_pending_docs', folio: 'DGO-9988', rejectedDocuments: [], hasDisability: false },
-      { id: '102', userName: 'MARÍA LÓPEZ', type: 'Motociclista', process: 'Primera Vez', cost: 608, date: '2025-12-29', status: 'paid_pending_docs', folio: 'DGO-7744', rejectedDocuments: [], hasDisability: true }, 
-      { id: '103', userName: 'PEDRO SÁNCHEZ', type: 'Automovilista', process: 'Renovación', cost: 912, date: '2025-12-28', status: 'rejected', folio: 'DGO-1122', rejectedDocuments: ['photo'], hasDisability: false },
-      { id: '104', userName: 'ANA SOTO', type: 'Chofer', process: 'Renovación', cost: 912, date: '2025-12-20', status: 'completed', folio: 'DGO-3321', rejectedDocuments: [], hasDisability: false }
+  // --- MOCK DATA ---
+  // Agregué un motivo de prueba a Pedro Sánchez (ID 103) para que veas cómo se ve
+  const [requests, setRequests] = useState<ExtendedRequest[]>([
+      { id: '101', userName: 'JUAN PÉREZ GARCÍA', type: 'Automovilista', process: 'Primera Vez', cost: 912, date: '2025-12-29', status: 'paid_pending_docs', folio: 'DGO-9988', rejectedDocuments: [], hasDisability: false, paymentVerified: false },
+      { id: '102', userName: 'MARÍA LÓPEZ', type: 'Motociclista', process: 'Primera Vez', cost: 608, date: '2025-12-29', status: 'paid_pending_docs', folio: 'DGO-7744', rejectedDocuments: [], hasDisability: true, paymentVerified: false }, 
+      { 
+        id: '103', userName: 'PEDRO SÁNCHEZ', type: 'Automovilista', process: 'Renovación', cost: 912, date: '2025-12-28', status: 'rejected', folio: 'DGO-1122', rejectedDocuments: ['photo'], hasDisability: false, paymentVerified: true,
+        documentReasons: { 'photo': 'La imagen está muy borrosa y oscura.' } // <--- Ejemplo de dato histórico
+      },
+      { id: '104', userName: 'ANA SOTO', type: 'Chofer', process: 'Renovación', cost: 912, date: '2025-12-20', status: 'completed', folio: 'DGO-3321', rejectedDocuments: [], hasDisability: false, paymentVerified: true }
   ]);
 
-  // --- ESTADOS DE UI ---
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
-  
-  const [selectedReq, setSelectedReq] = useState<(LicenseRequest & { userName: string, hasDisability?: boolean }) | null>(null);
+  const [selectedReq, setSelectedReq] = useState<ExtendedRequest | null>(null);
   
   // Estados Validación
   const [docStatus, setDocStatus] = useState<Record<string, 'accepted' | 'rejected' | null>>({});
   const [docReasons, setDocReasons] = useState<Record<string, string>>({});
   const [previewDoc, setPreviewDoc] = useState<{ url: string; title: string } | null>(null);
 
-  // --- ESTADOS FILTRO FECHA ---
+  // Estados Filtro Fecha
   const todayISO = new Date().toISOString().split('T')[0];
   const [dateRange, setDateRange] = useState({ start: todayISO, end: todayISO });
   const [filterLabel, setFilterLabel] = useState('Hoy');
 
-  // --- HELPER: GENERADOR DINÁMICO DE DOCUMENTOS ---
+  // --- HELPER DOCUMENTOS ---
   const getRequiredDocs = (req: { hasDisability?: boolean }) => {
       const docs = [
-          { key: 'ineFront', label: 'INE (Lado Frontal)' },
-          { key: 'ineBack', label: 'INE (Lado Trasero)' },
-          { key: 'addressProof', label: 'Comprobante de Domicilio' },
-          { key: 'birthCertificate', label: 'Acta de Nacimiento' },
-          { key: 'photo', label: 'Fotografía Biométrica' }
+          { key: 'ineFront', label: DOC_LABELS.ineFront },
+          { key: 'ineBack', label: DOC_LABELS.ineBack },
+          { key: 'addressProof', label: DOC_LABELS.addressProof },
+          { key: 'birthCertificate', label: DOC_LABELS.birthCertificate },
+          { key: 'photo', label: DOC_LABELS.photo }
       ];
-
       if (req.hasDisability) {
-          docs.push({ key: 'disabilityProof', label: 'Certificado de Discapacidad' });
+          docs.push({ key: 'disabilityProof', label: DOC_LABELS.disabilityProof });
       }
-
       return docs;
   };
 
-  // --- HELPERS FECHA ---
   const formatDateMX = (isoDate: string) => {
       if (!isoDate) return '';
       const [year, month, day] = isoDate.split('-');
       return `${day}/${month}/${year}`;
   };
 
-  // --- LÓGICA DE FILTRADO ---
+  // --- FILTRADO ---
   const filteredRequests = requests.filter(req => {
       const lowerTerm = searchTerm.toLowerCase();
       const matchesSearch = req.userName.toLowerCase().includes(lowerTerm) || req.folio.toLowerCase().includes(lowerTerm);
@@ -96,18 +115,30 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
       else setDateRange({ start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] });
   };
 
+  const handleAcceptPayment = (id: string) => {
+    const confirm = window.confirm("¿Confirmas que el pago es correcto?");
+    if (!confirm) return;
+    setRequests(prev => prev.map(req => req.id === id ? { ...req, paymentVerified: true } : req));
+  };
+
+  const handleRejectPayment = (id: string) => {
+    const reason = prompt("Ingrese el motivo del rechazo del pago:");
+    if (!reason) return;
+    setRequests(prev => prev.map(req => 
+        req.id === id ? { ...req, status: 'rejected', rejectedDocuments: ['pago'], paymentReason: reason, date: todayISO } : req
+    ));
+    alert("Pago rechazado. Solicitud movida al Historial.");
+  };
+
   const handleOpenReview = (req: any) => {
       setSelectedReq(req);
       const initialStatus: any = {};
       const initialReasons: any = {};
-      
       const docsToReview = getRequiredDocs(req);
-      
       docsToReview.forEach(doc => { 
           initialStatus[doc.key] = null; 
           initialReasons[doc.key] = ''; 
       });
-      
       setDocStatus(initialStatus);
       setDocReasons(initialReasons);
   };
@@ -122,31 +153,44 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
   };
 
   const handleViewDocument = (key: string, label: string) => {
-      const fileUrl = DOC_PATHS[key] || 'https://via.placeholder.com/300?text=Archivo+No+Encontrado'; 
+      const fileUrl = DOC_PATHS[key] || 'https://via.placeholder.com/300'; 
       setPreviewDoc({ url: fileUrl, title: label });
   };
 
   const handleSubmitReview = () => {
       if (!selectedReq) return;
-
       const currentDocs = getRequiredDocs(selectedReq);
-
+      
+      // Validaciones
       const pendingDocs = currentDocs.filter(d => docStatus[d.key] === null);
       if (pendingDocs.length > 0) { alert(`Falta revisar: ${pendingDocs.map(d => d.label).join(', ')}`); return; }
       
       const rejectedKeys = currentDocs.filter(d => docStatus[d.key] === 'rejected').map(d => d.key);
       const missingReasons = rejectedKeys.filter(key => !docReasons[key] || docReasons[key].trim() === '');
-      
-      if (missingReasons.length > 0) { alert("Debes ingresar el motivo de rechazo para documentos marcados con error."); return; }
+      if (missingReasons.length > 0) { alert("Debes ingresar el motivo para los documentos rechazados."); return; }
+
+      // NUEVO: Recolectamos solo los motivos de lo que se rechazó para guardarlos
+      const rejectedReasonsMap: Record<string, string> = {};
+      rejectedKeys.forEach(key => {
+          rejectedReasonsMap[key] = docReasons[key];
+      });
 
       const finalStatus = rejectedKeys.length > 0 ? 'rejected' : 'completed';
 
       if ((window as any).tempUpdateRequestData) {
           (window as any).tempUpdateRequestData(selectedReq.id, { status: finalStatus, rejectedDocuments: rejectedKeys });
       }
-      setRequests(prev => prev.map(r => r.id === selectedReq.id ? { ...r, status: finalStatus, rejectedDocuments: rejectedKeys, date: todayISO } : r));
+
+      // Guardamos en el estado general
+      setRequests(prev => prev.map(r => r.id === selectedReq.id ? { 
+          ...r, 
+          status: finalStatus, 
+          rejectedDocuments: rejectedKeys, 
+          documentReasons: rejectedReasonsMap, // <--- AQUÍ GUARDAMOS LOS COMENTARIOS
+          date: todayISO 
+      } : r));
       
-      alert(`Solicitud ${finalStatus === 'completed' ? 'APROBADA' : 'RECHAZADA'} exitosamente.`);
+      alert(`Dictamen guardado: ${finalStatus === 'completed' ? 'APROBADO' : 'RECHAZADO'}`);
       setSelectedReq(null);
   };
 
@@ -179,17 +223,13 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
           </button>
       </div>
 
-      {/* BODY */}
       <main className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900 safe-bottom">
-        
-        {/* BUSCADOR */}
         <div className="mb-4 relative">
             <input type="text" placeholder="Buscar por Nombre o Folio..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full h-12 pl-12 pr-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm focus:border-primary outline-none dark:bg-gray-800 dark:text-white transition-all" />
             <span className="material-symbols-outlined absolute left-4 top-3 text-gray-400">search</span>
             {searchTerm && (<button onClick={() => setSearchTerm('')} className="absolute right-4 top-3 text-gray-400 hover:text-gray-600"><span className="material-symbols-outlined">close</span></button>)}
         </div>
 
-        {/* LISTA PENDIENTES */}
         {activeTab === 'pending' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-4">
                 {filteredRequests.length === 0 ? (
@@ -199,36 +239,44 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
                     </div>
                 ) : (
                     filteredRequests.map(req => (
-                        <div key={req.id} className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border-l-4 border-yellow-400 flex justify-between items-center hover:shadow-md transition-shadow">
-                            
-                            {/* --- COLUMNA IZQUIERDA (INFO) AJUSTADA --- */}
-                            {/* flex-1: Ocupa todo el espacio posible. min-w-0: Permite encogerse. pr-3: Margen para no pegar con el botón */}
+                        <div key={req.id} className={`bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border-l-4 flex justify-between items-center hover:shadow-md transition-shadow ${req.paymentVerified ? 'border-blue-500' : 'border-orange-400'}`}>
                             <div className="flex-1 min-w-0 pr-3">
                                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                                     <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0">Pendiente</span>
+                                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${req.paymentVerified ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                        {req.paymentVerified ? 'Pago Validado' : 'Revisar Pago'}
+                                     </span>
                                      <span className="text-xs text-gray-400 font-mono shrink-0">{req.folio}</span>
                                      {req.hasDisability && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase flex items-center gap-1 shrink-0"><span className="material-symbols-outlined text-[10px]">accessible</span> Discapacidad</span>}
                                 </div>
-                                {/* truncate: Corta el nombre con ... si es muy largo */}
                                 <h4 className="font-bold text-gray-900 dark:text-white text-base truncate">{req.userName}</h4>
                                 <div className="flex flex-wrap items-center gap-2 mt-1">
                                     <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{req.type}</span>
                                     <span className="text-xs text-gray-500">{req.process}</span>
+                                    <span className="text-xs font-bold text-gray-700 bg-gray-200 px-2 py-0.5 rounded">${req.cost} MXN</span>
                                 </div>
                             </div>
-
-                            {/* --- BOTÓN DERECHA AJUSTADO --- */}
-                            {/* shrink-0: Nunca se hace más pequeño, mantiene su tamaño completo */}
-                            <button onClick={() => handleOpenReview(req)} className="shrink-0 bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors flex items-center gap-2">
-                                <span className="material-symbols-outlined text-sm">rate_review</span> Validar
-                            </button>
+                            <div className="shrink-0 flex gap-2">
+                                {!req.paymentVerified ? (
+                                    <>
+                                        <button onClick={() => handleRejectPayment(req.id)} className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-1" title="Rechazar Pago">
+                                            <span className="material-symbols-outlined text-sm">payments</span><span className="material-symbols-outlined text-sm">close</span>
+                                        </button>
+                                        <button onClick={() => handleAcceptPayment(req.id)} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg shadow-green-500/30 hover:bg-green-700 transition-colors flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-sm">payments</span> Aceptar Pago
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button onClick={() => handleOpenReview(req)} className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors flex items-center gap-2 animate-in zoom-in duration-300">
+                                        <span className="material-symbols-outlined text-sm">rate_review</span> Validar Docs
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     ))
                 )}
             </div>
         )}
 
-        {/* LISTA HISTORIAL */}
         {activeTab === 'history' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 space-y-3">
@@ -256,17 +304,42 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
                 ) : (
                     <div className="space-y-3">
                         {filteredRequests.map(req => (
-                            <div key={req.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                                <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0 pr-2">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${req.status === 'completed' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                            <div key={req.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                                <div className="flex items-start gap-3 overflow-hidden flex-1 min-w-0">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-1 ${req.status === 'completed' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
                                         <span className="material-symbols-outlined text-xl">{req.status === 'completed' ? 'check' : 'block'}</span>
                                     </div>
-                                    <div className="min-w-0">
+                                    <div className="min-w-0 flex-1">
                                         <h4 className="font-bold text-sm text-gray-900 dark:text-white truncate">{req.userName}</h4>
                                         <p className="text-xs text-gray-500 truncate mt-0.5">{req.type} • {req.process}</p>
+                                        
+                                        {/* --- LÓGICA DE MOSTRAR MOTIVOS --- */}
+                                        
+                                        {/* 1. Motivo de rechazo de pago */}
+                                        {req.rejectedDocuments.includes('pago') && (
+                                            <div className="mt-2 bg-red-50 p-2 rounded-lg border border-red-100">
+                                                <p className="text-[10px] font-bold text-red-700 uppercase mb-0.5">Motivo Rechazo Pago:</p>
+                                                <p className="text-[11px] text-red-600 leading-tight">"{req.paymentReason}"</p>
+                                            </div>
+                                        )}
+
+                                        {/* 2. Motivo de rechazo de documentos */}
+                                        {!req.rejectedDocuments.includes('pago') && req.rejectedDocuments.length > 0 && req.documentReasons && (
+                                            <div className="mt-2 bg-red-50 p-2 rounded-lg border border-red-100">
+                                                <p className="text-[10px] font-bold text-red-700 uppercase mb-1">Documentos Rechazados:</p>
+                                                <ul className="space-y-1">
+                                                    {req.rejectedDocuments.map(docKey => (
+                                                        <li key={docKey} className="text-[11px] text-red-800 leading-tight">
+                                                            <span className="font-black">• {DOC_LABELS[docKey] || docKey}:</span> {req.documentReasons?.[docKey]}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
                                     </div>
                                 </div>
-                                <div className="text-right shrink-0 pl-2">
+                                <div className="text-right shrink-0 pl-2 self-start sm:self-center">
                                     <div className="flex flex-col items-end">
                                         <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md mb-1 ${req.status === 'completed' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                                             {req.status === 'completed' ? 'Aprobado' : 'Rechazado'}
@@ -283,7 +356,6 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
         )}
       </main>
 
-      {/* --- MODAL DE REVISIÓN DINÁMICO --- */}
       {selectedReq && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white dark:bg-gray-800 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
@@ -300,7 +372,6 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {/* AQUÍ ITERAMOS SOBRE LA LISTA DINÁMICA */}
                     {getRequiredDocs(selectedReq).map((doc) => {
                         const status = docStatus[doc.key];
                         return (
@@ -336,7 +407,6 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
         </div>
       )}
 
-      {/* --- PREVIEW MODAL --- */}
       {previewDoc && (
           <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col animate-in fade-in">
               <div className="flex justify-between items-center p-4 text-white"><h3 className="font-bold text-lg">{previewDoc.title}</h3><button onClick={() => setPreviewDoc(null)} className="bg-white/10 p-2 rounded-full hover:bg-white/20"><span className="material-symbols-outlined">close</span></button></div>
@@ -346,7 +416,6 @@ const OperatorDashboardScreen: React.FC<OperatorDashboardScreenProps> = ({ onLog
               </div>
           </div>
       )}
-
     </div>
   );
 };

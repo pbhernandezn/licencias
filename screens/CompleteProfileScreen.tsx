@@ -7,42 +7,9 @@ interface CompleteProfileScreenProps {
   onSave: (data: Partial<UserData>) => void;
 }
 
-// --- LISTA DE MUNICIPIOS ---
-const DURANGO_MUNICIPIOS = [
-  'CANATLÁN', 'CANELAS', 'CONETO DE COMONFORT', 'CUENCAMÉ', 'DURANGO', 
-  'EL ORO', 'GENERAL SIMÓN BOLÍVAR', 'GÓMEZ PALACIO', 'GUADALUPE VICTORIA', 
-  'GUANACEVÍ', 'HIDALGO', 'INDÉ', 'LERDO', 'MAPIMÍ', 'MEZQUITAL', 'NAZAS', 
-  'NOMBRE DE DIOS', 'NUEVO IDEAL', 'OCAMPO', 'OTÁEZ', 'PÁNUCO DE CORONADO', 
-  'PEÑÓN BLANCO', 'POANAS', 'PUEBLO NUEVO', 'RODEO', 'SAN BERNARDO', 'SAN DIMAS', 
-  'SAN JUAN DE GUADALUPE', 'SAN JUAN DEL RÍO', 'SAN LUIS DEL CORDERO', 
-  'SAN PEDRO DEL GALLO', 'SANTA CLARA', 'SANTIAGO PAPASQUIARO', 'SÚCHIL', 
-  'TAMAZULA', 'TEPEHUANES', 'TLAHUALILO', 'TOPIA', 'VICENTE GUERRERO'
-];
+// --- COMPONENTES UI (Helpers) ---
+// (Los inputs se mantienen igual, solo pondré el código principal actualizado)
 
-// --- DATA SIMULADA SEPOMEX ---
-const SEPOMEX_DATA: Record<string, { municipality: string, state: string, colonies: string[] }> = {
-    '34000': { municipality: 'DURANGO', state: 'DURANGO', colonies: ['ZONA CENTRO', 'TIERRA BLANCA', 'ANALCO'] },
-    '34100': { municipality: 'DURANGO', state: 'DURANGO', colonies: ['CIÉNEGA', 'VALLE DEL SUR', 'SANTA MARÍA', 'EL REFUGIO'] },
-    '34200': { municipality: 'DURANGO', state: 'DURANGO', colonies: ['JARDINES DE DURANGO', 'LOS REMEDIOS', 'LOMAS DEL PARQUE', 'HACIENDA'] },
-    '34220': { municipality: 'DURANGO', state: 'DURANGO', colonies: ['REAL DEL MEZQUITAL', 'CAMPESTRE', 'LAS ALAMEDAS'] },
-    '34138': { municipality: 'DURANGO', state: 'DURANGO', colonies: ['VILLAS DEL GUADIANA', 'FRACC. SAN ANTONIO', 'FIDEL VELÁZQUEZ'] },
-    '34080': { municipality: 'DURANGO', state: 'DURANGO', colonies: ['BARRIO DE TIERRA BLANCA', 'SANTA FE', 'LA VIRGEN'] },
-    '35000': { municipality: 'GÓMEZ PALACIO', state: 'DURANGO', colonies: ['ZONA CENTRO', 'SANTA ROSA', 'RUBÉN JARAMILLO'] },
-    '35015': { municipality: 'GÓMEZ PALACIO', state: 'DURANGO', colonies: ['FILADELFIA', 'PARQUE INDUSTRIAL', 'HAMBURGO'] },
-    '35020': { municipality: 'GÓMEZ PALACIO', state: 'DURANGO', colonies: ['CHAPALA', 'SAN ANTONIO', 'NUEVO GÓMEZ'] },
-    '35150': { municipality: 'LERDO', state: 'DURANGO', colonies: ['ZONA CENTRO', 'SAN ISIDRO', 'VILLA JARDÍN', 'MAGISTERIO'] },
-    '35158': { municipality: 'LERDO', state: 'DURANGO', colonies: ['LAS HUERTAS', 'SAN FERNANDO', 'EL HUEVARE'] },
-    '34600': { municipality: 'SANTIAGO PAPASQUIARO', state: 'DURANGO', colonies: ['ZONA CENTRO', 'ALTAMIRA', 'CNOP', 'ESPAÑA'] },
-    '34630': { municipality: 'SANTIAGO PAPASQUIARO', state: 'DURANGO', colonies: ['EL TAGARETE', 'LOMAS DE SAN JUAN', 'HERMANOS REVO'] },
-    '34400': { municipality: 'CANATLÁN', state: 'DURANGO', colonies: ['ZONA CENTRO', 'PROGRESISTA', 'VALLE VERDE'] },
-    '34700': { municipality: 'GUADALUPE VICTORIA', state: 'DURANGO', colonies: ['ZONA CENTRO', 'LA ESTACIÓN', 'LOMA BONITA'] },
-    '34950': { municipality: 'PUEBLO NUEVO', state: 'DURANGO', colonies: ['EL SALTO CENTRO', 'LA VICTORIA', 'CHAPULTEPEC'] },
-    '34890': { municipality: 'VICENTE GUERRERO', state: 'DURANGO', colonies: ['ZONA CENTRO', 'REVOLUCIÓN', 'CHICAGO'] },
-};
-
-// --- COMPONENTES UI ---
-
-// Agregamos `innerRef` para pasar la referencia
 const InputField = ({ label, value, onChange, placeholder, width = 'full', numeric = false, max = 50, readOnly = false, error, innerRef }: any) => (
     <div className={`space-y-1 ${width === 'half' ? 'col-span-1' : 'col-span-2'}`}>
         <label className={`text-[10px] font-bold uppercase ml-1 ${error ? 'text-red-500' : 'text-gray-500'}`}>
@@ -50,7 +17,7 @@ const InputField = ({ label, value, onChange, placeholder, width = 'full', numer
         </label>
         <div className="relative">
             <input 
-                ref={innerRef} // Asignamos la referencia aquí
+                ref={innerRef} 
                 value={value || ''} 
                 onChange={(e) => {
                     if (readOnly) return;
@@ -61,12 +28,12 @@ const InputField = ({ label, value, onChange, placeholder, width = 'full', numer
                 inputMode={numeric ? 'numeric' : 'text'}
                 readOnly={readOnly}
                 className={`w-full h-12 px-4 rounded-xl border-2 outline-none font-bold transition-all uppercase 
-                    ${readOnly 
-                        ? 'bg-gray-100 dark:bg-gray-900 border-gray-200 text-gray-500 cursor-not-allowed' 
-                        : error 
-                            ? 'bg-white dark:bg-gray-800 border-red-500 text-red-900 focus:border-red-600'
-                            : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 focus:border-primary text-gray-900 dark:text-white'
-                    }`}
+                ${readOnly 
+                    ? 'bg-gray-100 dark:bg-gray-900 border-gray-200 text-gray-500 cursor-not-allowed' 
+                    : error 
+                        ? 'bg-red-50 dark:bg-red-900/10 border-red-500 text-red-900 focus:border-red-600'
+                        : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 focus:border-primary text-gray-900 dark:text-white'
+                }`}
             />
             {readOnly && <span className="material-symbols-outlined absolute right-3 top-3 text-gray-400 text-sm">lock</span>}
             {!readOnly && error && <span className="material-symbols-outlined absolute right-3 top-3 text-red-500 text-sm">error</span>}
@@ -91,7 +58,7 @@ const PhoneInput = ({ ladaValue, phoneValue, onLadaChange, onPhoneChange, error,
                 <span className="absolute right-2 top-4 text-[8px] text-gray-400">▼</span>
             </div>
             <input 
-                ref={innerRef} // Referencia aquí
+                ref={innerRef} 
                 value={phoneValue}
                 onChange={(e) => {
                     const val = e.target.value.replace(/\D/g, ''); 
@@ -111,6 +78,11 @@ const PhoneInput = ({ ladaValue, phoneValue, onLadaChange, onPhoneChange, error,
 const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData, onBack, onSave }) => {
   
   const [currentStep, setCurrentStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Estados para las listas de localidades
+  const [localitiesList, setLocalitiesList] = useState<{id: number, localidad: string, municipio: string}[]>([]);
+  const [emergLocalitiesList, setEmergLocalitiesList] = useState<{id: number, localidad: string, municipio: string}[]>([]);
 
   const [form, setForm] = useState({
     // Datos Personales
@@ -133,7 +105,8 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
     zipCode: userData.zipCode || '',
     colony: userData.colony || '',
     municipality: userData.municipality || '',
-    locality: '',
+    locality: '',     // AHORA GUARDARÁ EL TEXTO: "COLONIA PRADO"
+    localityId: 0,    // NUEVO: GUARDARÁ EL ID: 3
     state: 'DURANGO',
     phoneLada: '+52',
     phone: userData.phone || '',
@@ -146,22 +119,20 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
     emergZipCode: '',
     emergColony: '',
     emergMunicipality: '',
-    emergLocality: '',
+    emergLocality: '',   // AHORA GUARDARÁ EL TEXTO
+    emergLocalityId: 0,  // NUEVO: GUARDARÁ EL ID
     emergPhoneLada: '+52',
     emergPhone: userData.emergencyPhone || ''
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [coloniesList, setColoniesList] = useState<string[]>([]);
-  const [emergColoniesList, setEmergColoniesList] = useState<string[]>([]);
-
-  // REFERENCIAS PARA AUTO-FOCUS (SOLO DE CAMPOS EDITABLES)
+  
   const inputRefs = {
       rfc: useRef<HTMLInputElement>(null),
       workplace: useRef<HTMLInputElement>(null),
       address: useRef<HTMLInputElement>(null),
-      zipCode: useRef<HTMLInputElement>(null),
-      colony: useRef<HTMLSelectElement | HTMLInputElement>(null), // Puede ser select o input
+      zipCode: useRef<HTMLInputElement>(null), 
+      colony: useRef<HTMLInputElement>(null),
       municipality: useRef<HTMLSelectElement>(null),
       phone: useRef<HTMLInputElement>(null),
       
@@ -175,7 +146,6 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
   const handleSafeInput = (field: string, rawValue: string, type: 'text' | 'alphanumeric' | 'numeric' | 'address' = 'alphanumeric') => {
       let value = rawValue.toUpperCase();
       value = value.replace(/['";\\]/g, "").replace(/--/g, "");
-
       let isValid = true;
       switch (type) {
           case 'text': if (!/^[A-ZÑ\s]*$/.test(value)) isValid = false; break;
@@ -183,35 +153,124 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
           case 'address': if (!/^[A-Z0-9Ñ\s#.\-\/]*$/.test(value)) isValid = false; break;
           case 'alphanumeric': if (!/^[A-Z0-9Ñ\s]*$/.test(value)) isValid = false; break;
       }
-
       if (isValid) {
           setForm(prev => ({ ...prev, [field]: value }));
           if (errors[field]) setErrors(prev => { const n = {...prev}; delete n[field]; return n; });
       }
   };
 
-  // --- LÓGICA SEPOMEX ---
-  useEffect(() => {
-      if (form.zipCode.length === 5 && SEPOMEX_DATA[form.zipCode]) {
-          const data = SEPOMEX_DATA[form.zipCode];
-          setForm(prev => ({ ...prev, municipality: data.municipality, state: data.state, locality: data.municipality, colony: '' }));
-          setColoniesList(data.colonies);
+  // --- MANEJO DE SELECCIÓN DE LOCALIDAD (CORREGIDO) ---
+  const handleLocalitySelect = (id: string, isEmergency: boolean) => {
+      const selectedId = Number(id);
+      
+      if (isEmergency) {
+          const item = emergLocalitiesList.find(i => i.id === selectedId);
+          if (item) {
+              setForm(prev => ({
+                  ...prev,
+                  emergLocality: item.localidad, // Guardamos Texto "EJIDO..."
+                  emergLocalityId: item.id       // Guardamos ID 854
+              }));
+              setErrors(prev => { const n = {...prev}; delete n.emergLocality; return n; });
+          }
       } else {
-          setColoniesList([]); 
+          const item = localitiesList.find(i => i.id === selectedId);
+          if (item) {
+              setForm(prev => ({
+                  ...prev,
+                  locality: item.localidad,      // Guardamos Texto "EJIDO..."
+                  localityId: item.id            // Guardamos ID 854
+              }));
+              setErrors(prev => { const n = {...prev}; delete n.locality; return n; });
+          }
+      }
+  };
+
+  // --- FETCH CP ---
+  const fetchZipData = async (cp: string, isEmergency: boolean) => {
+      try {
+          const response = await fetch('http://localhost:3001/api/catalogo/localidadByCP', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cp })
+          });
+
+          if (response.status === 204) {
+             if (isEmergency) {
+                setErrors(prev => ({ ...prev, emergZipCode: "CP Inválido (204)" }));
+                setEmergLocalitiesList([]);
+             } else {
+                setErrors(prev => ({ ...prev, zipCode: "CP Inválido (204)" }));
+                setLocalitiesList([]);
+             }
+             return;
+          }
+
+          const data = await response.json();
+
+          if (data.code === "204") {
+              if (isEmergency) {
+                  setErrors(prev => ({ ...prev, emergZipCode: "No es un código postal válido" }));
+                  setEmergLocalitiesList([]);
+                  setForm(prev => ({ ...prev, emergMunicipality: '', emergLocality: '', emergLocalityId: 0 }));
+              } else {
+                  setErrors(prev => ({ ...prev, zipCode: "No es un código postal válido" }));
+                  setLocalitiesList([]);
+                  setForm(prev => ({ ...prev, municipality: '', locality: '', localityId: 0 }));
+              }
+              return;
+          }
+
+          if (data.code === "200" && data.data && data.data.catCPs.length > 0) {
+              const list = data.data.catCPs;
+              const firstRecord = list[0]; 
+
+              if (isEmergency) {
+                  setEmergLocalitiesList(list);
+                  setForm(prev => ({ 
+                      ...prev, 
+                      emergMunicipality: firstRecord.municipio.toUpperCase(),
+                      emergLocality: '', 
+                      emergLocalityId: 0,
+                      emergState: 'DURANGO'
+                  }));
+                  setErrors(prev => { const n = {...prev}; delete n.emergZipCode; return n; });
+              } else {
+                  setLocalitiesList(list);
+                  setForm(prev => ({ 
+                      ...prev, 
+                      municipality: firstRecord.municipio.toUpperCase(),
+                      locality: '', 
+                      localityId: 0,
+                      state: 'DURANGO'
+                  }));
+                  setErrors(prev => { const n = {...prev}; delete n.zipCode; return n; });
+              }
+          }
+
+      } catch (error) {
+          console.error("Error fetching CP:", error);
+      }
+  };
+
+  useEffect(() => {
+      if (form.zipCode.length === 5) {
+          fetchZipData(form.zipCode, false);
+      } else {
+          setLocalitiesList([]);
       }
   }, [form.zipCode]);
 
   useEffect(() => {
-      if (form.emergZipCode.length === 5 && SEPOMEX_DATA[form.emergZipCode]) {
-          const data = SEPOMEX_DATA[form.emergZipCode];
-          setForm(prev => ({ ...prev, emergMunicipality: data.municipality, emergLocality: data.municipality, emergColony: '' }));
-          setEmergColoniesList(data.colonies);
+      if (form.emergZipCode.length === 5) {
+          fetchZipData(form.emergZipCode, true);
       } else {
-          setEmergColoniesList([]);
+          setEmergLocalitiesList([]);
       }
   }, [form.emergZipCode]);
 
-  // --- VALIDACIONES FINALES ---
+
+  // --- VALIDACIONES ---
   const validateRFC = (rfc: string) => {
       const rfcRegex = /^([A-ZÑ&]{3,4})(\d{2})(\d{2})(\d{2})([A-Z\d]{3})$/;
       if (!rfc) return "Requerido";
@@ -220,11 +279,10 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
       return null;
   };
 
-  // FUNCIÓN PARA HACER SCROLL AL PRIMER ERROR
   const scrollToFirstError = (errorList: any) => {
-      const errorKey = Object.keys(errorList)[0]; // Obtiene el primer key con error (ej: 'rfc')
+      const errorKey = Object.keys(errorList)[0]; 
       if (errorKey) {
-          // @ts-ignore - Accedemos dinámicamente a las refs
+          // @ts-ignore
           const ref = inputRefs[errorKey];
           if (ref && ref.current) {
               ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -245,9 +303,10 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
       
       if (step === 2) {
           if (!form.address.trim()) newErrors.address = 'Requerido';
-          if (form.zipCode.length !== 5) newErrors.zipCode = '5 dígitos';
+          if (!form.zipCode || form.zipCode.length !== 5) newErrors.zipCode = '5 dígitos';
           if (!form.colony.trim()) newErrors.colony = 'Requerido';
           if (!form.municipality.trim()) newErrors.municipality = 'Requerido';
+          if (!form.locality) newErrors.locality = 'Requerido';
           if (form.phone.length !== 10) newErrors.phone = '10 dígitos';
       }
 
@@ -256,14 +315,15 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
           if (!form.emergPaternal.trim()) newErrors.emergPaternal = 'Requerido';
           if (!form.emergPhone.length || form.emergPhone.length !== 10) newErrors.emergPhone = '10 dígitos';
           if (!form.emergAddress.trim()) newErrors.emergAddress = 'Requerido';
-          if (form.emergZipCode.length !== 5) newErrors.emergZipCode = '5 dígitos';
+          if (!form.emergZipCode || form.emergZipCode.length !== 5) newErrors.emergZipCode = '5 dígitos';
+          if (!form.emergLocality) newErrors.emergLocality = 'Requerido';
       }
 
       setErrors(newErrors);
       
       if (Object.keys(newErrors).length > 0) {
           isValid = false;
-          scrollToFirstError(newErrors); // <-- AQUÍ LLAMAMOS AL SCROLL
+          scrollToFirstError(newErrors);
       }
       return isValid;
   };
@@ -275,17 +335,83 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
       }
   };
 
-  const handleSave = () => {
-      if (validateStep(3)) {
-          const fullData = {
-              ...form,
-              lastName: `${form.paternalName} ${form.maternalName}`, 
-              address: `${form.address}, ${form.colony}`,
-              phone: `${form.phoneLada} ${form.phone}`,
-              emergencyContact: `${form.emergFirstName} ${form.emergPaternal}`,
-              emergencyPhone: `${form.emergPhoneLada} ${form.emergPhone}`
+  // --- GUARDAR DATOS (PAYLOAD CORREGIDO) ---
+  const handleSave = async () => {
+      if (!validateStep(3)) return;
+
+      setIsSubmitting(true);
+
+      try {
+          // AQUI ESTA LA CORRECCIÓN DE TU PAYLOAD
+          const payload = {
+              idUsuario: 9,
+              // Datos Personales
+              
+              rfc: form.rfc,
+              
+              // Dirección
+              domicilio: form.address,
+              colonia: form.colony,
+              cp: form.zipCode,          // "34000" (String visual)
+              id_cp: form.localityId,    // 854 (El ID que pide el backend) <--- AQUÍ VA EL ID
+              municipio: form.municipality,
+              localidad: form.locality,  // "COLONIA PRADO" (Texto) <--- AQUÍ VA EL TEXTO
+              entidad: "DURANGO", 
+              
+              // Otros Datos
+              nacionalidad: form.nationality,
+              sexo: form.gender === 'M' ? 'Masculino' : 'Femenino', 
+              tipoSangre: form.bloodType,
+              donador: form.isDonor ? "Si" : "No", 
+              lugarTrabajo: form.workplace,
+              restricciones: form.restrictions || "Ninguna",
+              observaciones: form.medicalNotes || "Ninguna",
+              
+              // Contacto Emergencia
+              conocidoNombre: form.emergFirstName,
+              conocidoApellidoPaterno: form.emergPaternal,
+              conocidoApellidoMaterno: form.emergMaternal,
+              conocidoDomicilio: form.emergAddress,
+              conocidoCp: form.emergZipCode,
+              conocidoIdCp: form.emergLocalityId, // ID para emergencia también
+              conocidoColonia: form.emergColony,
+              conocidoMunicipio: form.emergMunicipality,
+              conocidoLocalidad: form.emergLocality, // TEXTO para emergencia
+              conocidoTelefono: `${form.emergPhoneLada} ${form.emergPhone}`
           };
-          onSave(fullData);
+
+          console.log("Enviando Update Correcto:", payload);
+
+          const response = await fetch('http://localhost:3001/api/usuarios/updateUsuario', {
+              method: 'POST', 
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+
+          if (response.status === 204) {
+             setErrors(prev => ({ ...prev, locality: "Error al guardar (204)", zipCode: "Verificar CP" }));
+             throw new Error("Error 204: No se pudo actualizar.");
+          }
+
+          const data = await response.json();
+
+          if (data.code === "204" || (data.data && data.data.actualizado === false)) {
+              let errorMsg = data.message || "Error al actualizar.";
+              if (data.data && data.data.errores) {
+                  const detalles = Object.values(data.data.errores).join("\n- ");
+                  if (detalles) errorMsg += `\nDetalles:\n- ${detalles}`;
+              }
+              throw new Error(errorMsg);
+          }
+
+          console.log("✅ Usuario actualizado correctamente:", data);
+          onSave(form);
+
+      } catch (error: any) {
+          console.error("❌ Error Update:", error);
+          alert(`${error.message}`);
+      } finally {
+          setIsSubmitting(false);
       }
   };
 
@@ -317,7 +443,7 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
       {/* BODY */}
       <main className="flex-1 overflow-y-auto px-6 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         
-        {/* --- PASO 1 --- */}
+        {/* --- PASO 1 (Igual que antes) --- */}
         {currentStep === 1 && (
             <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-right">
                 <InputField label="Nombre(s)" value={form.firstName} readOnly={true} />
@@ -326,16 +452,7 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
                 <InputField label="CURP" value={form.curp} readOnly={true} width="half" />
                 <InputField label="Correo" value={form.email} readOnly={true} width="half" />
 
-                <InputField 
-                    innerRef={inputRefs.rfc} // Ref
-                    label="RFC" 
-                    value={form.rfc} 
-                    onChange={(val: string) => handleSafeInput('rfc', val, 'alphanumeric')} 
-                    placeholder="AAAA990101XXX" 
-                    width="half" 
-                    max={13} 
-                    error={errors.rfc}
-                />
+                <InputField innerRef={inputRefs.rfc} label="RFC" value={form.rfc} onChange={(val: string) => handleSafeInput('rfc', val, 'alphanumeric')} placeholder="AAAA990101XXX" width="half" max={13} error={errors.rfc} />
                 
                 <div className="col-span-1 space-y-1">
                     <label className="text-[10px] font-bold uppercase text-gray-500 ml-1">Sexo</label>
@@ -349,7 +466,6 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
                         <option value="MEXICANA">MEXICANA</option><option value="EXTRANJERA">EXTRANJERA</option>
                     </select>
                 </div>
-
                 <div className="col-span-1 space-y-1">
                     <label className="text-[10px] font-bold uppercase text-gray-500 ml-1">Tipo Sangre</label>
                     <select value={form.bloodType} onChange={(e) => setForm({...form, bloodType: e.target.value})} className="w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 outline-none font-bold">
@@ -362,15 +478,7 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
                         <span className="text-xs font-bold text-gray-600">Donador de Órganos</span>
                     </label>
                 </div>
-
-                <InputField 
-                    innerRef={inputRefs.workplace} // Ref
-                    label="Lugar de Trabajo" 
-                    value={form.workplace} 
-                    onChange={(val: string) => handleSafeInput('workplace', val, 'alphanumeric')} 
-                    placeholder="Empresa o Institución" 
-                    error={errors.workplace} 
-                />
+                <InputField innerRef={inputRefs.workplace} label="Lugar de Trabajo" value={form.workplace} onChange={(val: string) => handleSafeInput('workplace', val, 'alphanumeric')} placeholder="Empresa o Institución" error={errors.workplace} />
                 <InputField label="Restricciones" value={form.restrictions} onChange={(val: string) => handleSafeInput('restrictions', val, 'text')} placeholder="USA LENTES" />
                 <div className="col-span-2 space-y-1"><label className="text-[10px] font-bold uppercase text-gray-500 ml-1">Observaciones Médicas</label><textarea value={form.medicalNotes} onChange={(e) => handleSafeInput('medicalNotes', e.target.value, 'alphanumeric')} className="w-full h-20 p-3 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 outline-none font-bold uppercase resize-none" /></div>
             </div>
@@ -379,79 +487,34 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
         {/* --- PASO 2: DOMICILIO --- */}
         {currentStep === 2 && (
             <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-right">
-                <InputField 
-                    innerRef={inputRefs.address} // Ref
-                    label="Calle y Número" 
-                    value={form.address} 
-                    onChange={(val: string) => handleSafeInput('address', val, 'address')} 
-                    placeholder="AV. 20 DE NOVIEMBRE #123" 
-                    error={errors.address} 
-                />
+                <InputField innerRef={inputRefs.address} label="Calle y Número" value={form.address} onChange={(val: string) => handleSafeInput('address', val, 'address')} placeholder="AV. 20 DE NOVIEMBRE #123" error={errors.address} />
+                <InputField innerRef={inputRefs.zipCode} label="Código Postal" value={form.zipCode} onChange={(val: string) => handleSafeInput('zipCode', val, 'numeric')} placeholder="34000" numeric width="half" max={5} error={errors.zipCode} />
+                <InputField innerRef={inputRefs.colony} label="Colonia" value={form.colony} onChange={(val: string) => handleSafeInput('colony', val, 'address')} placeholder="ESCRIBE MANUALMENTE" width="half" error={errors.colony} />
+                <InputField label="Municipio" value={form.municipality} readOnly={true} width="half" />
                 
-                <InputField 
-                    innerRef={inputRefs.zipCode} // Ref
-                    label="Código Postal" 
-                    value={form.zipCode} 
-                    onChange={(val: string) => handleSafeInput('zipCode', val, 'numeric')} 
-                    placeholder="34000" 
-                    numeric width="half" max={5} 
-                    error={errors.zipCode} 
-                />
-                
+                {/* --- LOCALIDAD (CORREGIDO) --- */}
                 <div className="col-span-1 space-y-1">
-                    <label className={`text-[10px] font-bold uppercase ml-1 ${errors.colony ? 'text-red-500' : 'text-gray-500'}`}>Colonia</label>
-                    {coloniesList.length > 0 ? (
+                    <label className={`text-[10px] font-bold uppercase ml-1 ${errors.locality ? 'text-red-500' : 'text-gray-500'}`}>Localidad</label>
+                    {localitiesList.length > 0 ? (
                         <select 
-                            // @ts-ignore
-                            ref={inputRefs.colony} // Ref Select
-                            value={form.colony} 
-                            onChange={(e) => setForm({...form, colony: e.target.value})} 
-                            className={`w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 outline-none font-bold uppercase ${errors.colony ? 'border-red-500' : 'border-gray-100 dark:border-gray-700'}`}
+                            /* Usamos el ID interno para controlar el select, pero handleLocalitySelect guarda ID y Texto separados */
+                            value={form.localityId || ""} 
+                            onChange={(e) => handleLocalitySelect(e.target.value, false)} 
+                            className={`w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 outline-none font-bold uppercase ${errors.locality ? 'border-red-500' : 'border-gray-100 dark:border-gray-700'}`}
                         >
                             <option value="">Seleccione...</option>
-                            {coloniesList.map(c => <option key={c} value={c}>{c}</option>)}
+                            {localitiesList.map(item => (
+                                <option key={item.id} value={item.id}>{item.localidad}</option>
+                            ))}
                         </select>
                     ) : (
-                        <input 
-                            // @ts-ignore
-                            ref={inputRefs.colony} // Ref Input
-                            value={form.colony} 
-                            onChange={(e) => handleSafeInput('colony', e.target.value, 'address')} 
-                            className={`w-full h-12 px-4 rounded-xl bg-white border-2 outline-none font-bold uppercase ${errors.colony ? 'border-red-500' : 'border-gray-100'}`} 
-                            placeholder="ESCRIBE MANUALMENTE" 
-                        />
+                        <input readOnly value={form.locality} placeholder="Autocompletado..." className="w-full h-12 px-4 rounded-xl bg-gray-100 dark:bg-gray-900 border-2 border-gray-200 text-gray-500 font-bold uppercase cursor-not-allowed outline-none" />
                     )}
-                    {errors.colony && <p className="text-[9px] text-red-500 font-bold ml-1">{errors.colony}</p>}
+                    {errors.locality && <p className="text-[9px] text-red-500 font-bold ml-2">{errors.locality}</p>}
                 </div>
 
-                {coloniesList.length > 0 ? (
-                     <InputField label="Municipio" value={form.municipality} readOnly={true} width="half" />
-                ) : (
-                    <div className="col-span-1 space-y-1">
-                        <label className={`text-[10px] font-bold uppercase ml-1 ${errors.municipality ? 'text-red-500' : 'text-gray-500'}`}>Municipio</label>
-                        <select 
-                            ref={inputRefs.municipality} // Ref
-                            value={form.municipality} 
-                            onChange={(e) => setForm({...form, municipality: e.target.value})} 
-                            className={`w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 outline-none font-bold uppercase ${errors.municipality ? 'border-red-500' : 'border-gray-100 dark:border-gray-700'}`}
-                        >
-                            <option value="">Seleccione...</option>
-                            {DURANGO_MUNICIPIOS.map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                    </div>
-                )}
-
-                <InputField label="Localidad" value={form.locality} onChange={(val: string) => handleSafeInput('locality', val, 'text')} width="half" />
-                <InputField label="Entidad" value={form.state} readOnly={true} width="full" />
-                
-                <PhoneInput 
-                    innerRef={inputRefs.phone} // Ref
-                    ladaValue={form.phoneLada} 
-                    phoneValue={form.phone} 
-                    onLadaChange={(v: string) => setForm({...form, phoneLada: v})} 
-                    onPhoneChange={(v: string) => setForm({...form, phone: v})} 
-                    error={errors.phone} 
-                />
+                <InputField label="Entidad" value={form.state} readOnly={true} width="half" />
+                <PhoneInput innerRef={inputRefs.phone} ladaValue={form.phoneLada} phoneValue={form.phone} onLadaChange={(v: string) => setForm({...form, phoneLada: v})} onPhoneChange={(v: string) => setForm({...form, phone: v})} error={errors.phone} />
             </div>
         )}
 
@@ -459,75 +522,45 @@ const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ userData,
         {currentStep === 3 && (
             <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-right">
                 <div className="col-span-2 p-3 bg-red-50 rounded-xl mb-2 flex items-center gap-2 text-red-700"><span className="material-symbols-outlined">warning</span><p className="text-xs font-bold">En caso de accidente contactar a:</p></div>
-                
-                <InputField 
-                    innerRef={inputRefs.emergFirstName} // Ref
-                    label="Nombre(s)" 
-                    value={form.emergFirstName} 
-                    onChange={(val: string) => handleSafeInput('emergFirstName', val, 'text')} 
-                    error={errors.emergFirstName} 
-                />
-                <InputField 
-                    innerRef={inputRefs.emergPaternal} // Ref
-                    label="Apellido Paterno" 
-                    value={form.emergPaternal} 
-                    onChange={(val: string) => handleSafeInput('emergPaternal', val, 'text')} 
-                    width="half" 
-                    error={errors.emergPaternal} 
-                />
+                <InputField innerRef={inputRefs.emergFirstName} label="Nombre(s)" value={form.emergFirstName} onChange={(val: string) => handleSafeInput('emergFirstName', val, 'text')} error={errors.emergFirstName} />
+                <InputField innerRef={inputRefs.emergPaternal} label="Apellido Paterno" value={form.emergPaternal} onChange={(val: string) => handleSafeInput('emergPaternal', val, 'text')} width="half" error={errors.emergPaternal} />
                 <InputField label="Apellido Materno" value={form.emergMaternal} onChange={(val: string) => handleSafeInput('emergMaternal', val, 'text')} width="half" />
-                
                 <div className="col-span-2 border-t border-gray-100 my-2"></div>
+                <InputField innerRef={inputRefs.emergAddress} label="Calle y Número (Emergencia)" value={form.emergAddress} onChange={(val: string) => handleSafeInput('emergAddress', val, 'address')} error={errors.emergAddress} />
+                <InputField innerRef={inputRefs.emergZipCode} label="C.P." value={form.emergZipCode} onChange={(val: string) => handleSafeInput('emergZipCode', val, 'numeric')} placeholder="34000" numeric width="half" max={5} error={errors.emergZipCode} />
+                <InputField label="Colonia" value={form.emergColony} onChange={(val: string) => handleSafeInput('emergColony', val, 'address')} width="half" placeholder="ESCRIBE MANUALMENTE" />
+                <InputField label="Municipio" value={form.emergMunicipality} readOnly={true} width="half" />
                 
-                <InputField 
-                    innerRef={inputRefs.emergAddress} // Ref
-                    label="Calle y Número (Emergencia)" 
-                    value={form.emergAddress} 
-                    onChange={(val: string) => handleSafeInput('emergAddress', val, 'address')} 
-                    error={errors.emergAddress} 
-                />
-                <InputField 
-                    innerRef={inputRefs.emergZipCode} // Ref
-                    label="C.P." 
-                    value={form.emergZipCode} 
-                    onChange={(val: string) => handleSafeInput('emergZipCode', val, 'numeric')} 
-                    placeholder="34000" 
-                    numeric width="half" max={5} 
-                    error={errors.emergZipCode} 
-                />
-                
+                {/* --- LOCALIDAD EMERGENCIA (CORREGIDO) --- */}
                 <div className="col-span-1 space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-gray-500 ml-1">Colonia</label>
-                    {emergColoniesList.length > 0 ? (
-                        <select value={form.emergColony} onChange={(e) => setForm({...form, emergColony: e.target.value})} className="w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 outline-none font-bold uppercase">
+                    <label className={`text-[10px] font-bold uppercase ml-1 ${errors.emergLocality ? 'text-red-500' : 'text-gray-500'}`}>Localidad</label>
+                    {emergLocalitiesList.length > 0 ? (
+                        <select 
+                            value={form.emergLocalityId || ""} 
+                            onChange={(e) => handleLocalitySelect(e.target.value, true)} 
+                            className={`w-full h-12 px-3 rounded-xl bg-white dark:bg-gray-800 border-2 outline-none font-bold uppercase ${errors.emergLocality ? 'border-red-500' : 'border-gray-100 dark:border-gray-700'}`}
+                        >
                             <option value="">Seleccione...</option>
-                            {emergColoniesList.map(c => <option key={c} value={c}>{c}</option>)}
+                            {emergLocalitiesList.map(item => (
+                                <option key={item.id} value={item.id}>{item.localidad}</option>
+                            ))}
                         </select>
                     ) : (
-                        <input value={form.emergColony} onChange={(e) => handleSafeInput('emergColony', e.target.value, 'address')} className="w-full h-12 px-4 rounded-xl bg-white border-2 border-gray-100 outline-none font-bold uppercase" />
+                        <input readOnly value={form.emergLocality} placeholder="Autocompletado..." className="w-full h-12 px-4 rounded-xl bg-gray-100 dark:bg-gray-900 border-2 border-gray-200 text-gray-500 font-bold uppercase cursor-not-allowed outline-none" />
                     )}
+                    {errors.emergLocality && <p className="text-[9px] text-red-500 font-bold ml-2">{errors.emergLocality}</p>}
                 </div>
-
-                <InputField label="Municipio" value={form.emergMunicipality} onChange={(val: string) => handleSafeInput('emergMunicipality', val, 'text')} width="half" />
-                <InputField label="Localidad" value={form.emergLocality} onChange={(val: string) => handleSafeInput('emergLocality', val, 'text')} width="half" />
                 
-                <PhoneInput 
-                    innerRef={inputRefs.emergPhone} // Ref
-                    ladaValue={form.emergPhoneLada} 
-                    phoneValue={form.emergPhone} 
-                    onLadaChange={(v: string) => setForm({...form, emergPhoneLada: v})} 
-                    onPhoneChange={(v: string) => setForm({...form, emergPhone: v})} 
-                    error={errors.emergPhone} 
-                />
+                <PhoneInput innerRef={inputRefs.emergPhone} ladaValue={form.emergPhoneLada} phoneValue={form.emergPhone} onLadaChange={(v: string) => setForm({...form, emergPhoneLada: v})} onPhoneChange={(v: string) => setForm({...form, emergPhone: v})} error={errors.emergPhone} />
             </div>
         )}
 
       </main>
 
       <div className="p-6 bg-white/90 dark:bg-surface-dark/90 backdrop-blur-md border-t border-gray-100 dark:border-gray-800">
-        <button onClick={currentStep === 3 ? handleSave : handleNext} className="w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-lg shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
-            {currentStep === 3 ? 'Guardar Todo' : 'Siguiente'}
-            <span className="material-symbols-outlined">{currentStep === 3 ? 'save' : 'arrow_forward'}</span>
+        <button onClick={currentStep === 3 ? handleSave : handleNext} disabled={isSubmitting} className={`w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-lg shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}>
+            {isSubmitting ? 'Guardando...' : (currentStep === 3 ? 'Guardar Todo' : 'Siguiente')}
+            {!isSubmitting && <span className="material-symbols-outlined">{currentStep === 3 ? 'save' : 'arrow_forward'}</span>}
         </button>
       </div>
 

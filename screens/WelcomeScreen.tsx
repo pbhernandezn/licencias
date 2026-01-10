@@ -111,21 +111,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
           </button>
         </form>
 
-        <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200 dark:border-gray-700"></div></div>
-            <div className="relative flex justify-center text-xs uppercase"><span className="bg-white dark:bg-surface-dark px-2 text-gray-400 font-bold">O continúa con</span></div>
-        </div>
+      
 
-        <div className="grid grid-cols-2 gap-4 mb-6">
-            <button type="button" onClick={() => onStart({ email: 'existente@gmail.com', firstName: 'Juan', lastName: 'Pérez' })} className="h-12 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-white dark:bg-surface-dark">
-              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
-              <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Google</span>
-            </button>
-            <button type="button" onClick={() => onStart({ email: 'operador@gmail.com' })} className="h-12 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-white dark:bg-surface-dark">
-              <img src="https://www.svgrepo.com/show/475647/facebook-color.svg" className="w-5 h-5" alt="Facebook" />
-              <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Facebook</span>
-            </button>
-        </div>
+        
 
         <div className="mt-4 text-center pb-8">
            <p className="text-sm text-gray-500 mb-4">¿Es tu primera vez?</p>
